@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KoldoGPT - Chat de Noticias</title>
+  <style>
+      body {
+          font-family: Arial, sans-serif;
+          margin: 0;
+          padding: 0;
+          background-color: #f5f5f5;
+      }
+      .container {
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 15px;
+      }
+      h1 {
+          color: #003366;
+          text-align: center;
+          margin-top: 20px;
+      }
+      p {
+          text-align: center;
+          font-size: 16px;
+      }
+      .chat-container {
+          background-color: white;
+          border: 1px solid #ccc;
+          padding: 15px;
+          height: 450px;
+          overflow-y: auto;
+          margin-bottom: 10px;
+          border-radius: 8px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      }
+      .message {
+          margin-bottom: 12px;
+          padding: 10px;
+          border-radius: 5px;
+          max-width: 80%;
+          word-wrap: break-word;
+      }
+      .user {
+          background-color: #d9edf7;
+          align-self: flex-end;
+          text-align: right;
+          margin-left: auto;
+      }
+      .assistant {
+          background-color: #e6e6e6;
+          align-self: flex-start;
+          text-align: left;
+          margin-right: auto;
+      }
+      .input-container {
+          display: flex;
+          gap: 10px;
+      }
+      input[type="text"] {
+          flex: 1;
+          padding: 12px;
+          font-size: 16px;
+          border: 1px solid #ccc;
+          border-radius: 5px;
+      }
+      button {
+          padding: 12px;
+          font-size: 16px;
+          background-color: #003366;
+          color: white;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          flex-shrink: 0;
+      }
+      button:hover {
+          background-color: #0055a5;
+      }
+      a {
+          color: #003366;
+          text-decoration: underline;
+      }
+
+      /* Responsividad para móviles */
+      @media (max-width: 600px) {
+          body {
+              margin: 0;
+              padding: 0;
+          }
+          .container {
+              padding: 10px;
+          }
+          h1 {
+              font-size: 20px;
+          }
+          .chat-container {
+              height: 300px;
+              font-size: 14px;
+          }
+          input[type="text"], button {
+              font-size: 14px;
+              padding: 10px;
+          }
+      }
+  </style>
+</head>
+<body>
+  <div class="container">
+      <h1>KoldoGPT - Chat de Noticias</h1>
+      <p>
+          Este es un buscador experimental sobre todas las noticias publicadas en la web etiquetadas como 
+          <strong>'Caso Koldo'</strong> y <strong>'Santos Cerdán'</strong>. 
+          Si detectas algún comportamiento extraño en las respuestas, por favor avísanos.
+      </p>
+
+      <div id="chat" class="chat-container"></div>
+
+      <form class="input-container" id="chatForm">
+          <input type="text" id="question" 
+                 placeholder="Escribe tu pregunta..." 
+                 required 
+                 inputmode="text" 
+                 autocomplete="off">
+          <button type="submit">Enviar</button>
+      </form>
+  </div>
+
+  <script>
+      const chatContainer = document.getElementById('chat');
+      const input = document.getElementById('question');
+      const chatForm = document.getElementById('chatForm');
+
+      // Historial de conversación
+      let messages = [];
+
+      function addMessage(role, content) {
+          const div = document.createElement('div');
+          div.classList.add('message', role);
+          div.innerHTML = `<strong>${role === 'user' ? 'Tú' : 'KoldoGPT'}:</strong><br>${content}`;
+          chatContainer.appendChild(div);
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+
+      async function sendMessage() {
+          const question = input.value.trim();
+          if (!question) return;
+
+          // Mostrar mensaje del usuario
+          addMessage('user', question);
+          messages.push({ role: 'user', content: question });
+          input.value = "";
+
+          // Mostrar "pensando..."
+          const thinking = document.createElement('div');
+          thinking.classList.add('message', 'assistant');
+          thinking.innerHTML = "<em>KoldoGPT está pensando...</em>";
+          chatContainer.appendChild(thinking);
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+
+          try {
+              const response = await fetch("https://koldogpt-811896322472.europe-west1.run.app/query", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ messages: messages })
+              });
+
+              const result = await response.json();
+
+              // Eliminar el mensaje "pensando..."
+              chatContainer.removeChild(thinking);
+
+              if (result.answer) {
+                  addMessage('assistant', result.answer);
+                  messages.push({ role: 'assistant', content: result.answer });
+              } else {
+                  addMessage('assistant', "Lo siento, no he podido obtener una respuesta.");
+              }
+          } catch (error) {
+              chatContainer.removeChild(thinking);
+              addMessage('assistant', "Error al conectar con el servicio: " + error);
+          }
+
+          // Devolver el foco al input (Android/iOS)
+          setTimeout(() => input.focus(), 100);
+      }
+
+      chatForm.addEventListener('submit', function (e) {
+          e.preventDefault();
+          sendMessage();
+      });
+
+      // Compatibilidad con Enter en iOS y Android
+      input.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') {
+              e.preventDefault();
+              sendMessage();
+          }
+      });
+  </script>
+</body>
+</html>
