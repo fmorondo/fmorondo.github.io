@@ -190,44 +190,42 @@
       });
     }
 
-    // 🔹 FIX: Verificar tamaño estable antes de mostrar botón
-    function verificarZIP(nombreZip, intentos = 0, ultimoTam = 0) {
+    // ✅ FIX: Verificar descarga real con GET parcial
+    async function verificarZIP(nombreZip, intentos = 0) {
       const urlZip = "https://transcriptor-servicio-811896322472.europe-west1.run.app/descargar/" + nombreZip;
 
-      progreso.textContent += `\n📦 Verificando disponibilidad del ZIP (intento ${intentos + 1})...`;
+      progreso.textContent += `\n📦 Verificando disponibilidad real del ZIP (intento ${intentos + 1})...`;
 
-      fetch(urlZip, { method: "HEAD" })
-        .then(res => {
-          if (res.ok) {
-            const tam = parseInt(res.headers.get("content-length") || "0");
-            if (tam > 0 && tam === ultimoTam) {
-              progreso.textContent += `\n✅ Transcripción completada. Pulsa el botón para descargar.`;
-              zipDescargable = nombreZip;
-              botonDescargar.classList.remove("hidden");
-              botonReintentar.classList.add("hidden");
-            } else if (intentos < 6) {
-              setTimeout(() => verificarZIP(nombreZip, intentos + 1, tam), 3000);
-            } else {
-              progreso.textContent += `\n⚠️ ZIP aún no estable. Puedes reintentar más tarde.`;
-              botonReintentar.classList.remove("hidden");
-            }
-          } else {
-            if (intentos < 6) {
-              setTimeout(() => verificarZIP(nombreZip, intentos + 1, ultimoTam), 3000);
-            } else {
-              progreso.textContent += `\n⚠️ ZIP aún no disponible. Puedes reintentar más tarde.`;
-              botonReintentar.classList.remove("hidden");
-            }
+      try {
+        const res = await fetch(urlZip, { method: "GET", headers: { "Range": "bytes=0-100" } });
+
+        if (res.ok) {
+          const blob = await res.blob();
+
+          if (blob.size > 0) {
+            progreso.textContent += `\n✅ Transcripción completada. Pulsa el botón para descargar.`;
+            zipDescargable = nombreZip;
+            botonDescargar.classList.remove("hidden");
+            botonReintentar.classList.add("hidden");
+            return;
           }
-        })
-        .catch(() => {
-          if (intentos < 6) {
-            setTimeout(() => verificarZIP(nombreZip, intentos + 1, ultimoTam), 3000);
-          } else {
-            progreso.textContent += `\n❌ Error al verificar disponibilidad del ZIP.`;
-            botonReintentar.classList.remove("hidden");
-          }
-        });
+        }
+
+        if (intentos < 6) {
+          setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000);
+        } else {
+          progreso.textContent += `\n⚠️ ZIP aún no disponible para descarga.`;
+          botonReintentar.classList.remove("hidden");
+        }
+
+      } catch (e) {
+        if (intentos < 6) {
+          setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000);
+        } else {
+          progreso.textContent += `\n❌ Error al verificar disponibilidad del ZIP.`;
+          botonReintentar.classList.remove("hidden");
+        }
+      }
     }
   </script>
 </body>
