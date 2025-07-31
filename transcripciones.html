@@ -20,14 +20,11 @@
       Este es un sistema en pruebas de transcripción de entrevistas (puede dar resultados extraños en charlas o ruedas de prensa). En esta versión funciona de la siguiente forma:
     </p>
     <ul>
-      <li>Elige un archivo. Es mejor que le hayas puesto un nombre claro, como el nombre del entrevistado o el tuyo, en lugar de 2452.WAV o WhatsApp Audio 2025-06-16 at 18.40.21.mp4.</li>
+      <li>Elige un archivo. Es mejor que le hayas puesto un nombre claro.</li>
       <li>Pulsa en el botón de <strong>Subir el archivo y transcribir</strong>.</li>
       <li>El sistema va informando de los pasos que da.</li>
-      <li>Al final aparece un botón para <strong>descargar las transcripciones</strong>. Están en un zip los dos archivos: uno contiene la transcripción bruta y otro la corregida.</li>
+      <li>Al final aparece un botón para <strong>descargar las transcripciones</strong>.</li>
     </ul>
-    <p>
-      Si la entrevista es larga, el sistema corta el audio en varios fragmentos, pero los superpone un minuto para que no se pierda nada. Puede haber frases repetidas.
-    </p>
     <p>
       Si al intentar descargar el archivo te aparece una página casi en blanco con el mensaje de que no está disponible, espera un minuto y dale a F5 para refrescar. Probablemente ya te descargará el archivo zip.
     </p>
@@ -101,38 +98,37 @@
       }
     });
 
-botonDescargar.addEventListener("click", () => {
-  if (!zipDescargable) return;
+    botonDescargar.addEventListener("click", () => {
+      if (!zipDescargable) return;
 
-  const url = "https://transcriptor-servicio-811896322472.europe-west1.run.app/descargar/" + zipDescargable;
+      const url = "https://transcriptor-servicio-811896322472.europe-west1.run.app/descargar/" + zipDescargable;
 
-  const descargar = (intentos = 0) => {
-    fetch(url, { method: "HEAD" }).then(res => {
-      if (res.ok) {
-        const enlace = document.createElement("a");
-        enlace.href = url;
-        enlace.download = zipDescargable;
-        enlace.click();
-      } else {
-        if (intentos < 4) {
-          progreso.textContent += `\n⏳ ZIP aún no listo para descargar (intento ${intentos + 1}). Reintentando...`;
-          setTimeout(() => descargar(intentos + 1), 2000);
-        } else {
-          progreso.textContent += `\n❌ No se pudo descargar el ZIP después de varios intentos.`;
-        }
-      }
-    }).catch(() => {
-      if (intentos < 4) {
-        setTimeout(() => descargar(intentos + 1), 2000);
-      } else {
-        progreso.textContent += `\n❌ Error al intentar descargar el ZIP.`;
-      }
+      const descargar = (intentos = 0) => {
+        fetch(url, { method: "HEAD" }).then(res => {
+          if (res.ok) {
+            const enlace = document.createElement("a");
+            enlace.href = url;
+            enlace.download = zipDescargable;
+            enlace.click();
+          } else {
+            if (intentos < 4) {
+              progreso.textContent += `\n⏳ ZIP aún no listo para descargar (intento ${intentos + 1}). Reintentando...`;
+              setTimeout(() => descargar(intentos + 1), 2000);
+            } else {
+              progreso.textContent += `\n❌ No se pudo descargar el ZIP después de varios intentos.`;
+            }
+          }
+        }).catch(() => {
+          if (intentos < 4) {
+            setTimeout(() => descargar(intentos + 1), 2000);
+          } else {
+            progreso.textContent += `\n❌ Error al intentar descargar el ZIP.`;
+          }
+        });
+      };
+
+      descargar();
     });
-  };
-
-  descargar();
-});
-
 
     botonReintentar.addEventListener("click", () => {
       if (!nombreZipPendiente) return;
@@ -170,16 +166,16 @@ botonDescargar.addEventListener("click", () => {
               if (match) {
                 const data = match[1];
                 if (data.startsWith("DOWNLOAD::")) {
-  const nombreZip = data.split("::")[1];
-  nombreZipPendiente = nombreZip;
+                  const nombreZip = data.split("::")[1];
+                  nombreZipPendiente = nombreZip;
 
-  progreso.textContent += `\n🕒 Esperando 30 segundos antes de verificar la descarga...`;
+                  progreso.textContent += `\n🕒 Esperando 30 segundos antes de verificar la descarga...`;
 
-  setTimeout(() => {
-    verificarZIP(nombreZip);
-  }, 30000); // 30 segundos = 30000 ms
-}
- else {
+                  setTimeout(() => {
+                    verificarZIP(nombreZip);
+                  }, 30000);
+                }
+                else {
                   progreso.textContent += data + "\n";
                 }
               }
@@ -194,36 +190,45 @@ botonDescargar.addEventListener("click", () => {
       });
     }
 
-   function verificarZIP(nombreZip, intentos = 0) {
-  const urlZip = "https://transcriptor-servicio-811896322472.europe-west1.run.app/descargar/" + nombreZip;
+    // 🔹 FIX: Verificar tamaño estable antes de mostrar botón
+    function verificarZIP(nombreZip, intentos = 0, ultimoTam = 0) {
+      const urlZip = "https://transcriptor-servicio-811896322472.europe-west1.run.app/descargar/" + nombreZip;
 
-  progreso.textContent += `\n📦 Verificando disponibilidad del ZIP (intento ${intentos + 1})...`;
+      progreso.textContent += `\n📦 Verificando disponibilidad del ZIP (intento ${intentos + 1})...`;
 
-  fetch(urlZip, { method: "HEAD" })
-    .then(res => {
-      if (res.ok) {
-        progreso.textContent += `\n✅ Transcripción completada. Pulsa el botón para descargar.`;
-        zipDescargable = nombreZip;
-        botonDescargar.classList.remove("hidden");
-        botonReintentar.classList.add("hidden");
-      } else {
-        if (intentos < 4) {
-          setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000);
-        } else {
-          progreso.textContent += `\n⚠️ ZIP aún no disponible. Puedes reintentar más tarde.`;
-          botonReintentar.classList.remove("hidden");
-        }
-      }
-    })
-    .catch(() => {
-      if (intentos < 4) {
-        setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000);
-      } else {
-        progreso.textContent += `\n❌ Error al verificar disponibilidad del ZIP.`;
-        botonReintentar.classList.remove("hidden");
-      }
-    });
-}
+      fetch(urlZip, { method: "HEAD" })
+        .then(res => {
+          if (res.ok) {
+            const tam = parseInt(res.headers.get("content-length") || "0");
+            if (tam > 0 && tam === ultimoTam) {
+              progreso.textContent += `\n✅ Transcripción completada. Pulsa el botón para descargar.`;
+              zipDescargable = nombreZip;
+              botonDescargar.classList.remove("hidden");
+              botonReintentar.classList.add("hidden");
+            } else if (intentos < 6) {
+              setTimeout(() => verificarZIP(nombreZip, intentos + 1, tam), 3000);
+            } else {
+              progreso.textContent += `\n⚠️ ZIP aún no estable. Puedes reintentar más tarde.`;
+              botonReintentar.classList.remove("hidden");
+            }
+          } else {
+            if (intentos < 6) {
+              setTimeout(() => verificarZIP(nombreZip, intentos + 1, ultimoTam), 3000);
+            } else {
+              progreso.textContent += `\n⚠️ ZIP aún no disponible. Puedes reintentar más tarde.`;
+              botonReintentar.classList.remove("hidden");
+            }
+          }
+        })
+        .catch(() => {
+          if (intentos < 6) {
+            setTimeout(() => verificarZIP(nombreZip, intentos + 1, ultimoTam), 3000);
+          } else {
+            progreso.textContent += `\n❌ Error al verificar disponibilidad del ZIP.`;
+            botonReintentar.classList.remove("hidden");
+          }
+        });
+    }
   </script>
 </body>
 </html>
