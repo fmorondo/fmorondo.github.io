@@ -113,40 +113,37 @@
       chatContainer.scrollTop = chatContainer.scrollHeight;
 
       try {
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages })
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status} ${response.statusText}`);
-        }
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages })
+      });
 
-        const result = await response.json();
-        chatContainer.removeChild(thinkingRow);
-
-        if (result.answer) {
-          appendRow('assistant', result.answer);
-          messages.push({ role: 'assistant', content: result.answer });
-        } else {
-          appendRow('assistant', 'Lo siento, no he podido obtener una respuesta.');
-        }
-      } catch (error) {
-        chatContainer.removeChild(thinkingRow);
-        appendRow('assistant', 'Error al conectar con el servicio: ' + error);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
       }
 
-      setTimeout(() => input.focus(), 100);
+      const result = await response.json();
+      chatContainer.removeChild(thinkingRow);
+
+      if (result.answer) {
+        appendRow('assistant', result.answer);
+        messages.push({ role: 'assistant', content: result.answer });
+      } else {
+        appendRow('assistant', 'Lo siento, no he podido obtener una respuesta.');
+      }
+    } catch (error) {
+      chatContainer.removeChild(thinkingRow);
+      appendRow('assistant', '⚠️ Error al conectar: ' + (error?.message || error));
+      console.error('Detalles fetch:', error);
     }
 
-    chatForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      sendMessage();
-    });
+    setTimeout(() => input.focus(), 100);
+  }
 
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); sendMessage(); }
-    });
+  chatForm.addEventListener('submit', (e) => { e.preventDefault(); sendMessage(); });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendMessage(); } });
+
   </script>
 </body>
 </html>
