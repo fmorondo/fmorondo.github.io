@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Noticias de Osasuna · Periodistas</title>
-  <meta name="description" content="Buscador de noticias de Osasuna para periodistas, basado exclusivamente en documentos de la vector store." />
+  <title>Noticias de Osasuna · Chat</title>
+  <meta name="description" content="Buscador de noticias de Osasuna para aficionados, basado exclusivamente en documentos cargados en la vector store." />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -16,25 +16,25 @@
     <div class="brand">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
       Diario de Navarra · Utilidades
-      <span class="badge">Noticias de Osasuna · Periodistas</span>
+      <span class="badge">Noticias de Osasuna</span>
     </div>
   </header>
 
   <main>
     <section class="card chat-wrap" aria-labelledby="titulo">
       <div style="display:grid; gap:6px">
-        <h1 id="titulo" class="title">Noticias de Osasuna · Periodistas</h1>
-        <p class="subtitle">Buscador para profesionales de la información. Responde con tono sobrio y preciso, fundamentando solo en documentos cargados en la vector store.</p>
+        <h1 id="titulo" class="title">Noticias de Osasuna · Chat</h1>
+        <p class="subtitle">Buscador para aficionados rojillos. Responde en tono cercano y <strong>solo</strong> con info presente en los documentos de la vector store.</p>
       </div>
 
       <div id="chat" class="chat-container" role="log" aria-live="polite" aria-atomic="false"></div>
 
       <form class="input-container" id="chatForm">
-        <input type="text" id="question" placeholder="Escribe tu consulta periodística…" required inputmode="text" autocomplete="off" />
+        <input type="text" id="question" placeholder="¿Qué quieres saber hoy de Osasuna?" required inputmode="text" autocomplete="off" />
         <button type="submit" id="sendBtn">Enviar</button>
       </form>
 
-      <p class="footer">Nota: si falta información en los documentos, el asistente lo indicará claramente.</p>
+      <p class="footer">Si ves algo raro, avísanos para revisar el corpus.</p>
     </section>
   </main>
 
@@ -43,8 +43,8 @@
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
 
   <script>
-    // URL absoluta del backend multi-app (slug: osasuna-prensa)
-    const API_URL = "https://koldogpt-811896322472.europe-west1.run.app/osasuna-prensa/query";
+    // URL absoluta del backend multi-app (slug: osasuna)
+    const API_URL = "https://koldogpt-811896322472.europe-west1.run.app/osasuna/query";
 
     const chatContainer = document.getElementById('chat');
     const input = document.getElementById('question');
@@ -72,7 +72,7 @@
       row.className = `row ${role}`;
       const bubble = document.createElement('div');
       bubble.className = 'message';
-      const meta = `<div class="meta">${role === 'user' ? 'Tú' : 'Osasuna Prensa'}</div>`;
+      const meta = `<div class="meta">${role === 'user' ? 'Tú' : 'OsasunaGPT'}</div>`;
       if (role === 'assistant') {
         const body = isHtml ? DOMPurify.sanitize(String(content ?? '')) : renderMarkdown(content);
         bubble.innerHTML = meta + body;
@@ -96,7 +96,7 @@
       thinkingRow.className = 'row assistant';
       const thinkingBubble = document.createElement('div');
       thinkingBubble.className = 'message';
-      thinkingBubble.innerHTML = '<em>El asistente está pensando…</em>';
+      thinkingBubble.innerHTML = '<em>OsasunaGPT está pensando…</em>';
       thinkingRow.appendChild(thinkingBubble);
       chatContainer.appendChild(thinkingRow);
       chatContainer.scrollTop = chatContainer.scrollHeight;
