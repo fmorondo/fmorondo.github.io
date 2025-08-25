@@ -101,6 +101,7 @@ input:focus, select:focus {
 }
 
 /* Botones */
+/* Estilo común para todos los botones */
 button,
 a.button {
   appearance: none;
@@ -116,8 +117,12 @@ a.button {
   transition: transform .06s ease, box-shadow .2s ease, filter .15s ease;
   text-decoration: none;
   text-align: center;
-  display: inline-block;
 }
+
+/* Diferencia solo en cómo se colocan */
+button { display: inline-block; }
+a.button { display: block; }
+
 button:hover, a.button:hover { filter: brightness(1.05); }
 button:active, a.button:active { transform: translateY(1px); }
 button[disabled] { opacity: .5; cursor: not-allowed; }
