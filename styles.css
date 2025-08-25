@@ -201,12 +201,32 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
 }
 .message blockquote { margin: 8px 0; padding-left: 12px; border-left: 3px solid #cbd5e1; color: #475569; }
 
+/* Utilidades */
+.hidden { display: none !important; }
+
+.panel {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 8px;
+  color: var(--text);
+}
+
+.info {
+  margin-top: 15px;
+  font-size: 14px;
+  background-color: #f9fafb;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+}
+.info ul { padding-left: 18px; margin: 8px 0 0 0; }
+.info li { margin-bottom: 6px; }
+
 /* Responsivo */
 @media (max-width: 640px) {
   .title { font-size: 22px; }
   .chat-container { height: 360px; }
-
-/* Utilidades */
-.hidden { display: none !important; }
 }
-
