@@ -205,4 +205,8 @@ button[disabled] { opacity: .5; cursor: not-allowed; }
 @media (max-width: 640px) {
   .title { font-size: 22px; }
   .chat-container { height: 360px; }
+
+/* Utilidades */
+.hidden { display: none !important; }
 }
+
