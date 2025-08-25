@@ -3,225 +3,148 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Subida de CSV a Vector Store · Koldo/Osasuna</title>
-  <meta name="description" content="Interfaz clara para subir y procesar un CSV en la Vector Store (Koldo u Osasuna)" />
+  <title>Asesor Cumplimiento · GLI</title>
+  <meta name="description" content="Asistente interno de seguridad, cumplimiento normativo, ciberseguridad y prevención de acoso, basado en documentos del Grupo La Información." />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #f6f8fb; --panel: #ffffff; --panel-2: #f2f5fb; --text: #0f172a; --muted: #667085;
-      --brand: #2563eb; --brand-2: #1d4ed8; --ok: #16a34a; --warn: #d97706; --error: #ef4444;
-      --border: #d0d5dd; --radius: 16px; --shadow: 0 8px 24px rgba(0,0,0,.08);
-    }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; }
-    body {
-      margin: 0; line-height: 1.5; color: var(--text);
-      font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      background: radial-gradient(1200px 800px at 80% -10%, rgba(37,99,235,.10), transparent 60%),
-                  radial-gradient(1000px 600px at -10% 110%, rgba(37,99,235,.08), transparent 55%),
-                  var(--bg);
-    }
-    header { max-width: 960px; margin: 32px auto 8px; padding: 0 20px; }
-    .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .2px; font-size: 20px; }
-    .badge { padding: 4px 10px; border-radius: 999px; background: rgba(61,123,250,.1); color: var(--brand); font-weight: 600; font-size: 12px; }
-
-    main { max-width: 960px; margin: 16px auto 48px; padding: 0 20px; }
-    .card { background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px; }
-    .stack { display: grid; gap: 18px; }
-    .title { font-size: 28px; margin: 0; letter-spacing: .2px; }
-    .subtitle { margin: 0; color: var(--muted); }
-
-    .uploader { display: grid; gap: 16px; }
-    .dropzone { position: relative; display: grid; place-items: center; text-align: center; padding: 28px; border: 2px dashed var(--border); border-radius: calc(var(--radius) - 4px); background: rgba(61,123,250,.04); transition: border-color .2s ease, background .2s ease, transform .05s ease; cursor: pointer; user-select: none; }
-    .dropzone:hover { border-color: var(--brand); background: rgba(61,123,250,.08); }
-    .dropzone.dragover { border-color: var(--brand); background: rgba(61,123,250,.15); transform: translateY(-1px); }
-    .dropzone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-    .hint { color: var(--muted); font-size: 14px; }
-
-    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-    .file-pill { display: inline-flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 999px; background: #f9fafb; font-size: 14px; }
-    .file-pill .dot { width: 8px; height: 8px; background: var(--brand); border-radius: 999px; }
-
-    button { appearance: none; border: 0; cursor: pointer; padding: 12px 16px; border-radius: 12px; font-weight: 600; font-size: 14px; background: linear-gradient(180deg, var(--brand) 0%, var(--brand-2) 100%); color: #ffffff; box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 6px 14px rgba(61,123,250,.25); transition: transform .06s ease, box-shadow .2s ease, filter .15s ease; }
-    button:hover { filter: brightness(1.05); }
-    button:active { transform: translateY(1px); box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 4px 10px rgba(61,123,250,.25); }
-    button[disabled] { opacity: .5; cursor: not-allowed; }
-    .btn-secondary { background: #f3f4f7; color: var(--text); box-shadow: inset 0 1px 0 rgba(255,255,255,.6); border: 1px solid var(--border); }
-
-    .progress { height: 10px; width: 100%; background: #eef2f7; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
-    .progress > div { height: 100%; width: 0%; background: linear-gradient(90deg, var(--brand), var(--brand-2)); transition: width .2s ease; }
-
-    .result { background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; white-space: pre-wrap; word-break: break-word; font-size: 13px; color: #0f172a; max-height: 420px; overflow: auto; }
-
-    .footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 18px; }
-    .status { font-size: 13px; color: var(--muted); }
-
-    @media (max-width: 640px) { .title { font-size: 22px; } .dropzone { padding: 22px; } }
-  </style>
+  <!-- CSS centralizado -->
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header>
     <div class="brand">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
-      KoldoGPT · Herramientas
-      <span class="badge">Vector Store</span>
+      Diario de Navarra · Utilidades
+      <span class="badge">Asesor Cumplimiento</span>
     </div>
   </header>
 
-  <main class="stack">
-    <section class="card stack">
-      <div class="stack" style="gap:6px">
-        <h1 class="title">Subir y procesar CSV</h1>
-        <p class="subtitle">Carga un archivo <strong>.csv</strong> y selecciona el destino (Koldo u Osasuna).</p>
+  <main>
+    <section class="card chat-wrap" aria-labelledby="titulo">
+      <div style="display:grid; gap:6px">
+        <h1 id="titulo" class="title">Asesor de Cumplimiento · GLI</h1>
+        <p class="subtitle">Asistente interno sobre seguridad, cumplimiento normativo, ciberseguridad y prevención de acoso. Basado exclusivamente en documentación corporativa conectada a la vector store.</p>
       </div>
 
-      <form id="uploadForm" class="uploader" enctype="multipart/form-data">
-        <div class="row" style="gap:10px;">
-          <label for="destino">Destino:</label>
-          <select id="destino">
-            <option value="koldo" data-vs="vs_6887bf8bb9008191a9a77ea125cc8f67">Koldo</option>
-            <option value="osasuna" data-vs="vs_68ac1e0408d88191a6ed948c978b1247">Osasuna</option>
-          </select>
-          <input type="text" id="vsOverride" placeholder="o pega vector_store_id (opcional)" style="flex:1; min-width:240px;">
-        </div>
+      <div id="chat" class="chat-container" role="log" aria-live="polite" aria-atomic="false"></div>
 
-        <label class="dropzone" id="dropzone">
-          <input type="file" id="fileInput" name="file" accept=".csv,text/csv" />
-          <div>
-            <h3 style="margin:0 0 6px 0">Arrastra tu CSV aquí</h3>
-            <div class="hint">o haz clic para seleccionar un archivo</div>
-          </div>
-        </label>
-
-        <div class="row" id="fileInfo" hidden>
-          <span class="file-pill"><span class="dot"></span><span id="fileName">archivo.csv</span></span>
-          <span class="status" id="fileSize"></span>
-        </div>
-
-        <div class="row">
-          <button type="submit" id="submitBtn" disabled>Subir y procesar</button>
-          <button type="button" class="btn-secondary" id="clearBtn">Quitar archivo</button>
-        </div>
-
-        <div class="progress" aria-hidden="true"><div id="bar"></div></div>
-        <div class="status" id="statusMsg">Esperando archivo…</div>
+      <form class="input-container" id="chatForm">
+        <input type="text" id="question" placeholder="Describe tu caso o consulta…" required inputmode="text" autocomplete="off" />
+        <button type="submit" id="sendBtn">Enviar</button>
       </form>
-    </section>
 
-    <section class="card stack">
-      <div class="row" style="justify-content: space-between; align-items: center">
-        <h2 style="margin:0">Respuesta del servidor</h2>
-        <div class="row">
-          <button type="button" class="btn-secondary" id="copyBtn">Copiar JSON</button>
-        </div>
-      </div>
-      <pre class="result" id="response" aria-live="polite" aria-atomic="true">—</pre>
-      <div class="footer">Endpoint: <code>POST /upload-to-vectorstore</code> (Cloud Run)</div>
+      <p class="footer">Si falta info esencial en los documentos, el asistente lo indicará y sugerirá el siguiente paso conforme a las políticas del Grupo.</p>
     </section>
   </main>
 
+  <!-- Markdown + Sanitizer -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+
   <script>
-    // --- Elementos ---
-    const form = document.getElementById('uploadForm');
-    const input = document.getElementById('fileInput');
-    const dropzone = document.getElementById('dropzone');
-    const fileInfo = document.getElementById('fileInfo');
-    const fileName = document.getElementById('fileName');
-    const fileSize = document.getElementById('fileSize');
-    const submitBtn = document.getElementById('submitBtn');
-    const clearBtn = document.getElementById('clearBtn');
-    const responseEl = document.getElementById('response');
-    const statusMsg = document.getElementById('statusMsg');
-    const bar = document.getElementById('bar');
-    const copyBtn = document.getElementById('copyBtn');
+    // URL absoluta de tu servicio Cloud Run
+    const API_URL = "https://buscador-protocolos-gli-811896322472.europe-west1.run.app/query";
 
-    // --- Config ---
-    const ENDPOINT = 'https://koldogpt-811896322472.europe-west1.run.app/upload-to-vectorstore';
+    const chatContainer = document.getElementById('chat');
+    const input = document.getElementById('question');
+    const chatForm = document.getElementById('chatForm');
 
-    // --- Utilidades ---
-    function humanFileSize(bytes) {
-      const thresh = 1024; if (Math.abs(bytes) < thresh) return bytes + ' B';
-      const units = ['KB','MB','GB','TB'];
-      let u = -1; do { bytes /= thresh; ++u; } while (Math.abs(bytes) >= thresh && u < units.length - 1);
-      return bytes.toFixed(1)+' '+units[u];
+    let messages = [];
+
+    function escapeHtml(str) {
+      return String(str ?? '').replace(/[&<>"']/g, (m) => (
+        { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[m]
+      ));
     }
-    const setStatus = (text) => statusMsg.textContent = text;
-    const setProgress = (p) => bar.style.width = `${p}%`;
 
-    function resetUI() {
+    function renderMarkdown(mdText) {
+      try {
+        const html = marked.parse(String(mdText ?? ''));
+        return DOMPurify.sanitize(html);
+      } catch (e) {
+        console.error('Markdown render error:', e);
+        return escapeHtml(mdText);
+      }
+    }
+
+    function appendRow(role, content, isHtml=false) {
+      const row = document.createElement('div');
+      row.className = `row ${role}`;
+
+      const bubble = document.createElement('div');
+      bubble.className = 'message';
+
+      const meta = `<div class="meta">${role === 'user' ? 'Tú' : 'Asesor'}</div>`;
+
+      if (role === 'assistant') {
+        const body = isHtml ? DOMPurify.sanitize(String(content ?? ''))
+                            : renderMarkdown(content);
+        bubble.innerHTML = meta + body;
+      } else {
+        bubble.innerHTML = meta + escapeHtml(content ?? '');
+      }
+
+      row.appendChild(bubble);
+      chatContainer.appendChild(row);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const question = input.value.trim();
+      if (!question) return;
+
+      appendRow('user', question);
+      messages.push({ role: 'user', content: question });
       input.value = '';
-      fileInfo.hidden = true;
-      submitBtn.disabled = true;
-      setStatus('Esperando archivo…');
-      setProgress(0);
-      responseEl.textContent = '—';
-    }
 
-    function showFile(file) {
-      if (!file) { resetUI(); return; }
-      fileInfo.hidden = false;
-      fileName.textContent = file.name;
-      fileSize.textContent = humanFileSize(file.size);
-      const looksCsv = file.name.toLowerCase().endsWith('.csv') || (file.type && file.type.includes('csv'));
-      submitBtn.disabled = !looksCsv;
-      setStatus(looksCsv ? 'Listo para subir.' : 'El archivo no parece CSV.');
-    }
-
-    // Drag & Drop
-    ['dragenter','dragover'].forEach(evt => dropzone.addEventListener(evt, e => {
-      e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover');
-    }));
-    ['dragleave','drop'].forEach(evt => dropzone.addEventListener(evt, e => {
-      e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover');
-    }));
-    dropzone.addEventListener('drop', e => { const file = e.dataTransfer.files[0]; if (file) { input.files = e.dataTransfer.files; showFile(file); } });
-
-    // File input
-    input.addEventListener('change', () => showFile(input.files[0]));
-
-    // Botones
-    clearBtn.addEventListener('click', resetUI);
-    copyBtn.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(responseEl.textContent); copyBtn.textContent = '¡Copiado!'; setTimeout(()=>copyBtn.textContent='Copiar JSON', 1200); }
-      catch { alert('No se pudo copiar al portapapeles'); }
-    });
-
-    // Envío
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const file = input.files[0];
-      if (!file) { setStatus('Selecciona un archivo .csv'); return; }
-
-      // Selección de destino
-      const sel = document.getElementById('destino');
-      const override = document.getElementById('vsOverride').value.trim();
-      const selectedVS = sel.options[sel.selectedIndex].dataset.vs;
-      const vectorStoreId = override || selectedVS;
-
-      const formData = new FormData();
-      formData.append('file', file, file.name);
-      formData.append('vector_store_id', vectorStoreId); // <— clave nueva
-
-      submitBtn.disabled = true; setStatus('Subiendo…'); setProgress(12);
+      const thinkingRow = document.createElement('div');
+      thinkingRow.className = 'row assistant';
+      const thinkingBubble = document.createElement('div');
+      thinkingBubble.className = 'message';
+      thinkingBubble.innerHTML = '<em>El Asesor está pensando…</em>';
+      thinkingRow.appendChild(thinkingBubble);
+      chatContainer.appendChild(thinkingRow);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
 
       try {
-        const res = await fetch(ENDPOINT, { method: 'POST', body: formData });
-        setProgress(55);
-        const text = await res.text();
-        let data; try { data = JSON.parse(text); } catch { data = { raw: text, note: 'Respuesta no-JSON recibida del servidor' }; }
-        setProgress(88);
-        responseEl.textContent = JSON.stringify(data, null, 2);
-        setStatus(res.ok ? 'Procesado correctamente.' : `Error ${res.status}: consulta el panel inferior.`);
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages })
+        });
+
+        let extra = '';
+        if (!response.ok) {
+          try { extra = ' — ' + (await response.text()); } catch {}
+          throw new Error(`HTTP ${response.status} ${response.statusText}${extra}`);
+        }
+
+        const result = await response.json();
+        chatContainer.removeChild(thinkingRow);
+
+        if (result.answer_html) {
+          appendRow('assistant', result.answer_html, true);
+          messages.push({ role: 'assistant', content: result.answer_html });
+        } else if (result.answer) {
+          appendRow('assistant', result.answer);
+          messages.push({ role: 'assistant', content: result.answer });
+        } else if (result.error) {
+          appendRow('assistant', `⚠️ Error: ${escapeHtml(result.error)}`);
+        } else {
+          appendRow('assistant', 'Lo siento, no he podido obtener una respuesta.');
+        }
       } catch (error) {
-        responseEl.textContent = `Error al conectar con el servicio: ${error}`;
-        setStatus('Error de red. Reintenta en unos segundos.');
-      } finally {
-        setProgress(100);
-        submitBtn.disabled = false;
+        chatContainer.removeChild(thinkingRow);
+        appendRow('assistant', '⚠️ Error al conectar: ' + (error?.message || error));
+        console.error('Detalles fetch:', error);
       }
-    });
+
+      setTimeout(() => input.focus(), 100);
+    }
+
+    chatForm.addEventListener('submit', (e) => { e.preventDefault(); sendMessage(); });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendMessage(); } });
   </script>
 </body>
 </html>
