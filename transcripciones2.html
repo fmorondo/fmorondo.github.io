@@ -8,7 +8,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <!-- CSS centralizado -->
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -63,6 +62,9 @@
   </main>
 
   <script>
+    // Hardcode del servicio NUEVO (staging)
+    const BASE_URL = 'https://transcriptor-prompts-811896322472.europe-west1.run.app';
+
     const archivoInput = document.getElementById('archivo');
     const subirBtn = document.getElementById('subir');
     const limpiarBtn = document.getElementById('limpiar');
@@ -70,8 +72,8 @@
     const botonDescargar = document.getElementById('descargar');
     const botonReintentar = document.getElementById('reintentar');
 
-    let zipDescargable = null;
-    let nombreZipPendiente = null;
+    let zipDescargable = null;        // fallback local (/descargar/<zip>)
+    let nombreZipPendiente = null;    // nombre del zip en fallback
     let intervaloProgreso = null;
 
     limpiarBtn.addEventListener('click', () => {
@@ -92,7 +94,7 @@
       botonDescargar.classList.add('hidden');
       botonReintentar.classList.add('hidden');
 
-      const respuesta = await fetch('https://transcriptor-prompts-811896322472.europe-west1.run.app/firmar-subida', {
+      const respuesta = await fetch(`${BASE_URL}/firmar-subida`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre_archivo: archivo.name })
@@ -121,7 +123,7 @@
 
     botonDescargar.addEventListener('click', () => {
       if (!zipDescargable) return;
-      const url = 'https://transcriptor-prompts-811896322472.europe-west1.run.app/descargar/' + zipDescargable;
+      const url = `${BASE_URL}/descargar/` + zipDescargable;
 
       const descargar = (intentos = 0) => {
         fetch(url, { method: 'HEAD' }).then(res => {
@@ -151,7 +153,7 @@
       progreso.textContent += '\n🧠 Procesando audio...\n';
       zipDescargable = null; nombreZipPendiente = null; botonDescargar.classList.add('hidden'); botonReintentar.classList.add('hidden');
 
-      const url = 'https://transcriptor-prompts-811896322472.europe-west1.run.app/transcribir-stream?gcs_uri=' + encodeURIComponent(gs_uri);
+      const url = `${BASE_URL}/transcribir-stream?gcs_uri=` + encodeURIComponent(gs_uri);
 
       if (intervaloProgreso) clearInterval(intervaloProgreso);
       intervaloProgreso = setInterval(() => { progreso.textContent += '\n⏳ Seguimos trabajando...\n'; }, 30000);
@@ -168,6 +170,22 @@
               const match = block.match(/^data:\s*(.*)$/m);
               if (match) {
                 const data = match[1];
+
+                // NUEVO: descarga directa desde GCS (sin esperas)
+                if (data.startsWith('DOWNLOAD_URL::')) {
+                  const urlFirmada = data.split('::')[1];
+                  progreso.textContent += '\n✅ ZIP disponible. Descargando...';
+                  const a = document.createElement('a');
+                  a.href = urlFirmada;
+                  a.download = 'transcripciones.zip';
+                  a.rel = 'noopener';
+                  a.click();
+                  botonDescargar.classList.add('hidden');
+                  botonReintentar.classList.add('hidden');
+                  return;
+                }
+
+                // Fallback clásico: /descargar/<zip> desde el backend
                 if (data.startsWith('DOWNLOAD::')) {
                   const nombreZip = data.split('::')[1];
                   nombreZipPendiente = nombreZip;
@@ -186,7 +204,7 @@
     }
 
     async function verificarZIP(nombreZip, intentos = 0) {
-      const urlZip = 'https://transcriptor-servicio-811896322472.europe-west1.run.app/descargar/' + nombreZip;
+      const urlZip = `${BASE_URL}/descargar/` + nombreZip;
       progreso.textContent += `\n📦 Verificando disponibilidad real del ZIP (intento ${intentos + 1})...`;
       try {
         const res = await fetch(urlZip, { method: 'GET', headers: { 'Range': 'bytes=0-100' } });
