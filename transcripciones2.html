@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Transcriptor de entrevistas · Diario de Navarra</title>
+  <meta name="description" content="Interfaz clara para subir audios y descargar transcripciones en ZIP" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- CSS centralizado -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+      Diario de Navarra · Utilidades
+      <span class="badge">Transcriptor</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="card stack" aria-labelledby="titulo">
+      <div class="stack" style="gap:6px">
+        <h1 id="titulo" class="title">📝 Transcriptor de entrevistas</h1>
+        <p class="subtitle">Sube un audio y descarga las transcripciones cuando el sistema termine el procesamiento.</p>
+      </div>
+
+      <details>
+        <summary>📘 Haz clic aquí para instrucciones</summary>
+        <div class="panel">
+          <p>Este es un sistema en pruebas de transcripción de entrevistas (puede dar resultados extraños en charlas o ruedas de prensa). En esta versión funciona de la siguiente forma:</p>
+          <ul>
+            <li>Elige un archivo. Es mejor que le hayas puesto un nombre claro.</li>
+            <li>Pulsa en el botón de <strong>Subir el archivo y procesarlo</strong>.</li>
+            <li>El sistema va informando de los pasos que da.</li>
+            <li>Al final aparece un botón para <strong>descargar las transcripciones</strong>.</li>
+          </ul>
+          <p>Si al intentar descargar el archivo te aparece una página casi en blanco con el mensaje de que no está disponible, espera un minuto y pulsa
+            <kbd>F5</kbd> para refrescar. Probablemente ya te descargará el archivo ZIP.</p>
+        </div>
+      </details>
+
+      <label for="archivo">Selecciona un archivo de audio:</label>
+      <input type="file" id="archivo" accept="audio/*" />
+
+      <div class="row">
+        <button id="subir">📤 Subir el archivo y procesarlo</button>
+        <button id="limpiar" class="btn-secondary" type="button">Quitar archivo</button>
+      </div>
+
+      <div class="stack">
+        <h3 style="margin:8px 0 0 0">Progreso</h3>
+        <pre id="progreso" class="result">Esperando archivo...</pre>
+        <div class="row">
+          <button id="descargar" class="hidden">📥 Descargar las transcripciones</button>
+          <button id="reintentar" class="hidden btn-secondary" type="button">🔁 Reintentar descarga</button>
+        </div>
+        <p class="footer">El archivo ZIP se sirve desde el servicio de transcripciones una vez finaliza el procesamiento.</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const archivoInput = document.getElementById('archivo');
+    const subirBtn = document.getElementById('subir');
+    const limpiarBtn = document.getElementById('limpiar');
+    const progreso = document.getElementById('progreso');
+    const botonDescargar = document.getElementById('descargar');
+    const botonReintentar = document.getElementById('reintentar');
+
+    let zipDescargable = null;
+    let nombreZipPendiente = null;
+    let intervaloProgreso = null;
+
+    limpiarBtn.addEventListener('click', () => {
+      archivoInput.value = '';
+      zipDescargable = null;
+      nombreZipPendiente = null;
+      botonDescargar.classList.add('hidden');
+      botonReintentar.classList.add('hidden');
+      progreso.textContent = 'Esperando archivo...';
+      archivoInput.focus();
+    });
+
+    subirBtn.addEventListener('click', async () => {
+      const archivo = archivoInput.files[0];
+      if (!archivo) { alert('Selecciona un archivo.'); return; }
+
+      progreso.textContent = '🔐 Preparando la subida...';
+      botonDescargar.classList.add('hidden');
+      botonReintentar.classList.add('hidden');
+
+      const respuesta = await fetch('https://transcriptor-servicio-811896322472.europe-west1.run.app/firmar-subida', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre_archivo: archivo.name })
+      });
+
+      if (!respuesta.ok) { progreso.textContent = '❌ Error al generar URL de subida.'; return; }
+
+      const { signed_url, gs_uri } = await respuesta.json();
+
+      progreso.textContent += '\n⬆️ Subiendo el archivo...';
+
+      try {
+        const uploadResp = await fetch(signed_url, {
+          method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: archivo
+        });
+
+        if (!uploadResp.ok) { progreso.textContent += `\n❌ Error al subir el archivo. Código: ${uploadResp.status}`; return; }
+
+        progreso.textContent += '\n✅ Subida completada. Procesando...';
+        iniciarSSE(gs_uri);
+
+      } catch (err) {
+        progreso.textContent += `\n❌ Error de red durante la subida: ${err}`;
+      }
+    });
+
+    botonDescargar.addEventListener('click', () => {
+      if (!zipDescargable) return;
+      const url = 'https://transcriptor-servicio-811896322472.europe-west1.run.app/descargar/' + zipDescargable;
+
+      const descargar = (intentos = 0) => {
+        fetch(url, { method: 'HEAD' }).then(res => {
+          if (res.ok) {
+            const enlace = document.createElement('a');
+            enlace.href = url; enlace.download = zipDescargable; enlace.click();
+          } else {
+            if (intentos < 4) {
+              progreso.textContent += `\n⏳ ZIP aún no listo para descargar (intento ${intentos + 1}). Reintentando...`;
+              setTimeout(() => descargar(intentos + 1), 2000);
+            } else {
+              progreso.textContent += `\n❌ No se pudo descargar el ZIP después de varios intentos.`;
+            }
+          }
+        }).catch(() => {
+          if (intentos < 4) { setTimeout(() => descargar(intentos + 1), 2000); }
+          else { progreso.textContent += `\n❌ Error al intentar descargar el ZIP.`; }
+        });
+      };
+
+      descargar();
+    });
+
+    botonReintentar.addEventListener('click', () => { if (nombreZipPendiente) verificarZIP(nombreZipPendiente); });
+
+    function iniciarSSE(gs_uri) {
+      progreso.textContent += '\n🧠 Procesando audio...\n';
+      zipDescargable = null; nombreZipPendiente = null; botonDescargar.classList.add('hidden'); botonReintentar.classList.add('hidden');
+
+      const url = 'https://transcriptor-servicio-811896322472.europe-west1.run.app/transcribir-stream?gcs_uri=' + encodeURIComponent(gs_uri);
+
+      if (intervaloProgreso) clearInterval(intervaloProgreso);
+      intervaloProgreso = setInterval(() => { progreso.textContent += '\n⏳ Seguimos trabajando...\n'; }, 30000);
+
+      fetch(url, { method: 'POST' }).then(response => {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+
+        const read = () => {
+          reader.read().then(({ done, value }) => {
+            if (done) { clearInterval(intervaloProgreso); return; }
+            const chunk = decoder.decode(value, { stream: true });
+            chunk.split('\n\n').forEach(block => {
+              const match = block.match(/^data:\s*(.*)$/m);
+              if (match) {
+                const data = match[1];
+                if (data.startsWith('DOWNLOAD::')) {
+                  const nombreZip = data.split('::')[1];
+                  nombreZipPendiente = nombreZip;
+                  progreso.textContent += `\n🕒 Esperando 30 segundos antes de verificar la descarga...`;
+                  setTimeout(() => { verificarZIP(nombreZip); }, 30000);
+                } else {
+                  progreso.textContent += data + '\n';
+                }
+              }
+            });
+            read();
+          });
+        };
+        read();
+      }).catch(() => { clearInterval(intervaloProgreso); progreso.textContent += '\n❌ Error al iniciar el procesamiento.'; });
+    }
+
+    async function verificarZIP(nombreZip, intentos = 0) {
+      const urlZip = 'https://transcriptor-servicio-811896322472.europe-west1.run.app/descargar/' + nombreZip;
+      progreso.textContent += `\n📦 Verificando disponibilidad real del ZIP (intento ${intentos + 1})...`;
+      try {
+        const res = await fetch(urlZip, { method: 'GET', headers: { 'Range': 'bytes=0-100' } });
+        if (res.ok) {
+          const blob = await res.blob();
+          if (blob.size > 0) {
+            progreso.textContent += `\n✅ Transcripción completada. Pulsa el botón para descargar.`;
+            zipDescargable = nombreZip; botonDescargar.classList.remove('hidden'); botonReintentar.classList.add('hidden'); return;
+          }
+        }
+        if (intentos < 6) { setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000); }
+        else { progreso.textContent += `\n⚠️ ZIP aún no disponible para descarga.`; botonReintentar.classList.remove('hidden'); }
+      } catch (_) {
+        if (intentos < 6) { setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000); }
+        else { progreso.textContent += `\n❌ Error al verificar disponibilidad del ZIP.`; botonReintentar.classList.remove('hidden'); }
+      }
+    }
+  </script>
+</body>
+</html>
