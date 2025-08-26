@@ -92,7 +92,7 @@
       botonDescargar.classList.add('hidden');
       botonReintentar.classList.add('hidden');
 
-      const respuesta = await fetch('https://transcriptor-servicio-811896322472.europe-west1.run.app/firmar-subida', {
+      const respuesta = await fetch('https://transcriptor-prompts-811896322472.europe-west1.run.app/firmar-subida', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre_archivo: archivo.name })
@@ -121,7 +121,7 @@
 
     botonDescargar.addEventListener('click', () => {
       if (!zipDescargable) return;
-      const url = 'https://transcriptor-servicio-811896322472.europe-west1.run.app/descargar/' + zipDescargable;
+      const url = 'https://transcriptor-prompts-811896322472.europe-west1.run.app/descargar/' + zipDescargable;
 
       const descargar = (intentos = 0) => {
         fetch(url, { method: 'HEAD' }).then(res => {
@@ -151,7 +151,7 @@
       progreso.textContent += '\n🧠 Procesando audio...\n';
       zipDescargable = null; nombreZipPendiente = null; botonDescargar.classList.add('hidden'); botonReintentar.classList.add('hidden');
 
-      const url = 'https://transcriptor-servicio-811896322472.europe-west1.run.app/transcribir-stream?gcs_uri=' + encodeURIComponent(gs_uri);
+      const url = 'https://transcriptor-prompts-811896322472.europe-west1.run.app/transcribir-stream?gcs_uri=' + encodeURIComponent(gs_uri);
 
       if (intervaloProgreso) clearInterval(intervaloProgreso);
       intervaloProgreso = setInterval(() => { progreso.textContent += '\n⏳ Seguimos trabajando...\n'; }, 30000);
