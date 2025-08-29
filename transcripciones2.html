@@ -22,7 +22,7 @@
   <main>
     <section class="card stack" aria-labelledby="titulo">
       <div class="stack" style="gap:6px">
-        <h1 id="titulo" class="title">📝 Transcriptor de entrevistas</h1>
+        <h1 id="titulo" class="title">📝 Transcriptor de entrevistas. Prueba.</h1>
         <p class="subtitle">Sube un audio y descarga las transcripciones cuando el sistema termine el procesamiento.</p>
       </div>
 
@@ -62,7 +62,7 @@
   </main>
 
   <script>
-    // Hardcode del servicio NUEVO (staging)
+    // URL base del servicio de Cloud Run (staging)
     const BASE_URL = 'https://transcriptor-prompts-811896322472.europe-west1.run.app';
 
     const archivoInput = document.getElementById('archivo');
@@ -72,8 +72,8 @@
     const botonDescargar = document.getElementById('descargar');
     const botonReintentar = document.getElementById('reintentar');
 
-    let zipDescargable = null;        // fallback local (/descargar/<zip>)
-    let nombreZipPendiente = null;    // nombre del zip en fallback
+    let zipDescargable = null;      // nombre del ZIP para fallback local
+    let nombreZipPendiente = null;  // idem
     let intervaloProgreso = null;
 
     limpiarBtn.addEventListener('click', () => {
@@ -83,6 +83,7 @@
       botonDescargar.classList.add('hidden');
       botonReintentar.classList.add('hidden');
       progreso.textContent = 'Esperando archivo...';
+      if (intervaloProgreso) clearInterval(intervaloProgreso);
       archivoInput.focus();
     });
 
@@ -94,26 +95,35 @@
       botonDescargar.classList.add('hidden');
       botonReintentar.classList.add('hidden');
 
-    const respuesta = await fetch(`${BASE_URL}/firmar-subida`, {...});
-if (!respuesta.ok) {
-  let detalle = '';
-  try { const j = await respuesta.json(); detalle = j.error ? ` Detalle: ${j.error}` : ''; } catch {}
-  progreso.textContent = '❌ Error al generar URL de subida.' + detalle;
-  return;
-});
+      // 1) Pide URL firmada para subir a GCS
+      const respuesta = await fetch(`${BASE_URL}/firmar-subida`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre_archivo: archivo.name })
+      });
 
-      if (!respuesta.ok) { progreso.textContent = '❌ Error al generar URL de subida.'; return; }
+      if (!respuesta.ok) {
+        let detalle = '';
+        try { const j = await respuesta.json(); detalle = j.error ? ` Detalle: ${j.error}` : ''; } catch {}
+        progreso.textContent = '❌ Error al generar URL de subida.' + detalle;
+        return;
+      }
 
       const { signed_url, gs_uri } = await respuesta.json();
 
+      // 2) Sube el archivo con PUT
       progreso.textContent += '\n⬆️ Subiendo el archivo...';
-
       try {
         const uploadResp = await fetch(signed_url, {
-          method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: archivo
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: archivo
         });
 
-        if (!uploadResp.ok) { progreso.textContent += `\n❌ Error al subir el archivo. Código: ${uploadResp.status}`; return; }
+        if (!uploadResp.ok) {
+          progreso.textContent += `\n❌ Error al subir el archivo. Código: ${uploadResp.status}`;
+          return;
+        }
 
         progreso.textContent += '\n✅ Subida completada. Procesando...';
         iniciarSSE(gs_uri);
@@ -131,7 +141,9 @@ if (!respuesta.ok) {
         fetch(url, { method: 'HEAD' }).then(res => {
           if (res.ok) {
             const enlace = document.createElement('a');
-            enlace.href = url; enlace.download = zipDescargable; enlace.click();
+            enlace.href = url;
+            enlace.download = zipDescargable;
+            enlace.click();
           } else {
             if (intentos < 4) {
               progreso.textContent += `\n⏳ ZIP aún no listo para descargar (intento ${intentos + 1}). Reintentando...`;
@@ -149,60 +161,73 @@ if (!respuesta.ok) {
       descargar();
     });
 
-    botonReintentar.addEventListener('click', () => { if (nombreZipPendiente) verificarZIP(nombreZipPendiente); });
+    botonReintentar.addEventListener('click', () => {
+      if (nombreZipPendiente) verificarZIP(nombreZipPendiente);
+    });
 
     function iniciarSSE(gs_uri) {
       progreso.textContent += '\n🧠 Procesando audio...\n';
-      zipDescargable = null; nombreZipPendiente = null; botonDescargar.classList.add('hidden'); botonReintentar.classList.add('hidden');
+      zipDescargable = null;
+      nombreZipPendiente = null;
+      botonDescargar.classList.add('hidden');
+      botonReintentar.classList.add('hidden');
 
       const url = `${BASE_URL}/transcribir-stream?gcs_uri=` + encodeURIComponent(gs_uri);
 
       if (intervaloProgreso) clearInterval(intervaloProgreso);
-      intervaloProgreso = setInterval(() => { progreso.textContent += '\n⏳ Seguimos trabajando...\n'; }, 30000);
+      intervaloProgreso = setInterval(() => {
+        progreso.textContent += '\n⏳ Seguimos trabajando...\n';
+      }, 30000);
 
-      fetch(url, { method: 'POST' }).then(response => {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
+      fetch(url, { method: 'POST' })
+        .then(response => {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder('utf-8');
 
-        const read = () => {
-          reader.read().then(({ done, value }) => {
-            if (done) { clearInterval(intervaloProgreso); return; }
-            const chunk = decoder.decode(value, { stream: true });
-            chunk.split('\n\n').forEach(block => {
-              const match = block.match(/^data:\s*(.*)$/m);
-              if (match) {
-                const data = match[1];
+          const read = () => {
+            reader.read().then(({ done, value }) => {
+              if (done) { if (intervaloProgreso) clearInterval(intervaloProgreso); return; }
+              const chunk = decoder.decode(value, { stream: true });
+              chunk.split('\n\n').forEach(block => {
+                const match = block.match(/^data:\s*(.*)$/m);
+                if (match) {
+                  const data = match[1];
 
-                // NUEVO: descarga directa desde GCS (sin esperas)
-                if (data.startsWith('DOWNLOAD_URL::')) {
-                  const urlFirmada = data.split('::')[1];
-                  progreso.textContent += '\n✅ ZIP disponible. Descargando...';
-                  const a = document.createElement('a');
-                  a.href = urlFirmada;
-                  a.download = 'transcripciones.zip';
-                  a.rel = 'noopener';
-                  a.click();
-                  botonDescargar.classList.add('hidden');
-                  botonReintentar.classList.add('hidden');
-                  return;
+                  // Descarga directa desde GCS (sin esperas)
+                  if (data.startsWith('DOWNLOAD_URL::')) {
+                    const urlFirmada = data.split('::')[1];
+                    if (intervaloProgreso) clearInterval(intervaloProgreso);
+                    progreso.textContent += '\n✅ ZIP disponible. Descargando...';
+                    const a = document.createElement('a');
+                    a.href = urlFirmada;
+                    a.download = 'transcripciones.zip';
+                    a.rel = 'noopener';
+                    a.click();
+                    botonDescargar.classList.add('hidden');
+                    botonReintentar.classList.add('hidden');
+                    return;
+                  }
+
+                  // Fallback clásico: /descargar/<zip> desde el backend
+                  if (data.startsWith('DOWNLOAD::')) {
+                    const nombreZip = data.split('::')[1];
+                    nombreZipPendiente = nombreZip;
+                    progreso.textContent += `\n🕒 Esperando 30 segundos antes de verificar la descarga...`;
+                    setTimeout(() => { verificarZIP(nombreZip); }, 30000);
+                  } else {
+                    progreso.textContent += data + '\n';
+                  }
                 }
-
-                // Fallback clásico: /descargar/<zip> desde el backend
-                if (data.startsWith('DOWNLOAD::')) {
-                  const nombreZip = data.split('::')[1];
-                  nombreZipPendiente = nombreZip;
-                  progreso.textContent += `\n🕒 Esperando 30 segundos antes de verificar la descarga...`;
-                  setTimeout(() => { verificarZIP(nombreZip); }, 30000);
-                } else {
-                  progreso.textContent += data + '\n';
-                }
-              }
+              });
+              read();
             });
-            read();
-          });
-        };
-        read();
-      }).catch(() => { clearInterval(intervaloProgreso); progreso.textContent += '\n❌ Error al iniciar el procesamiento.'; });
+          };
+          read();
+        })
+        .catch(() => {
+          if (intervaloProgreso) clearInterval(intervaloProgreso);
+          progreso.textContent += '\n❌ Error al iniciar el procesamiento.';
+        });
     }
 
     async function verificarZIP(nombreZip, intentos = 0) {
@@ -214,14 +239,25 @@ if (!respuesta.ok) {
           const blob = await res.blob();
           if (blob.size > 0) {
             progreso.textContent += `\n✅ Transcripción completada. Pulsa el botón para descargar.`;
-            zipDescargable = nombreZip; botonDescargar.classList.remove('hidden'); botonReintentar.classList.add('hidden'); return;
+            zipDescargable = nombreZip;
+            botonDescargar.classList.remove('hidden');
+            botonReintentar.classList.add('hidden');
+            return;
           }
         }
-        if (intentos < 6) { setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000); }
-        else { progreso.textContent += `\n⚠️ ZIP aún no disponible para descarga.`; botonReintentar.classList.remove('hidden'); }
+        if (intentos < 6) {
+          setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000);
+        } else {
+          progreso.textContent += `\n⚠️ ZIP aún no disponible para descarga.`;
+          botonReintentar.classList.remove('hidden');
+        }
       } catch (_) {
-        if (intentos < 6) { setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000); }
-        else { progreso.textContent += `\n❌ Error al verificar disponibilidad del ZIP.`; botonReintentar.classList.remove('hidden'); }
+        if (intentos < 6) {
+          setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000);
+        } else {
+          progreso.textContent += `\n❌ Error al verificar disponibilidad del ZIP.`;
+          botonReintentar.classList.remove('hidden');
+        }
       }
     }
   </script>
