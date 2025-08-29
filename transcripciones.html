@@ -127,21 +127,37 @@
       bloquearUI(true);
 
       // 1) Pide URL firmada para subir a GCS
-      const respuesta = await fetch(`${BASE_URL}/firmar-subida`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre_archivo: archivo.name })
-      });
+   try {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), 15000); // 15s de timeout por si queda colgado
 
-      if (!respuesta.ok) {
-        let detalle = '';
-        try { const j = await respuesta.json(); detalle = j.error ? ` Detalle: ${j.error}` : ''; } catch {}
-        progreso.textContent = '❌ Error al generar URL de subida.' + detalle;
-        bloquearUI(false);
-        return;
-      }
+  const respuesta = await fetch(`${BASE_URL}/firmar-subida`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre_archivo: archivo.name }),
+    signal: ac.signal
+  });
+  clearTimeout(t);
 
-      const { signed_url, gs_uri } = await respuesta.json();
+  if (!respuesta.ok) {
+    let detalle = '';
+    try { const j = await respuesta.json(); detalle = j.error ? ` Detalle: ${j.error}` : ''; } catch {}
+    progreso.textContent = '❌ Error al generar URL de subida.' + detalle;
+    bloquearUI(false);
+    return;
+  }
+
+  var { signed_url, gs_uri } = await respuesta.json(); // usa var para que exista fuera del try
+} catch (err) {
+  progreso.textContent = '❌ No se pudo contactar con el servicio (/firmar-subida).';
+  if (err && err.name === 'AbortError') {
+    progreso.textContent += ' Detalle: timeout (15s).';
+  } else if (err && err.message) {
+    progreso.textContent += ` Detalle: ${err.message}`;
+  }
+  bloquearUI(false);
+  return;
+}
 
       // 2) Sube el archivo con PUT
       progreso.textContent += '\n⬆️ Subiendo el archivo...';
