@@ -94,11 +94,13 @@
       botonDescargar.classList.add('hidden');
       botonReintentar.classList.add('hidden');
 
-      const respuesta = await fetch(`${BASE_URL}/firmar-subida`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre_archivo: archivo.name })
-      });
+    const respuesta = await fetch(`${BASE_URL}/firmar-subida`, {...});
+if (!respuesta.ok) {
+  let detalle = '';
+  try { const j = await respuesta.json(); detalle = j.error ? ` Detalle: ${j.error}` : ''; } catch {}
+  progreso.textContent = '❌ Error al generar URL de subida.' + detalle;
+  return;
+});
 
       if (!respuesta.ok) { progreso.textContent = '❌ Error al generar URL de subida.'; return; }
 
