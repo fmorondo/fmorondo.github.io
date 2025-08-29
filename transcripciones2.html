@@ -27,12 +27,12 @@
       </div>
 
       <details>
-        <summary>📘 Haz clic aquí para instrucciones</summary>
+        <summary>📘 Haz clic aquí para instrucciones, sobre todo si no lo has usado.</summary>
         <div class="panel">
-          <p>Este es un sistema en pruebas de transcripción de entrevistas (puede dar resultados extraños en charlas o ruedas de prensa). En esta versión funciona de la siguiente forma:</p>
+          <p>Este es un sistema en pruebas de transcripción de entrevistas y ruedas de prensa. En esta versión funciona de la siguiente forma:</p>
           <ul>
             <li>Elige un archivo. Es mejor que le hayas puesto un nombre claro.</li>
-            <li>Selecciona el idioma original y la plantilla (prompt) que se usará para corregir/formatear.</li>
+            <li>Selecciona el idioma original y la plantilla (prompt) que se usará para corregir/formatear. Hay versiones para entrevistas y ruedas de prensa o conferencias.</li>
             <li>Pulsa en <strong>Subir el archivo y procesarlo</strong>.</li>
             <li>El sistema va informando de los pasos que da.</li>
             <li>Al final se descargará el ZIP automáticamente; si no, tendrás un botón para descargar.</li>
@@ -47,11 +47,10 @@
       <div class="row" style="gap:12px; align-items:center; flex-wrap:wrap;">
         <label for="idioma">Idioma original:</label>
         <select id="idioma">
-          <option value="auto" selected>Detectar automáticamente</option>
           <option value="es">Español</option>
           <option value="en">Inglés</option>
           <option value="fr">Francés</option>
-          <option value="eu">Euskera</option>
+          <option value="auto" selected>Detectar automáticamente</option>
         </select>
 
         <label for="prompt">Plantilla (prompt):</label>
