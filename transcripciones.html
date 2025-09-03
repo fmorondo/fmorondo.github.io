@@ -73,7 +73,7 @@
           <button id="descargar" class="hidden">📥 Descargar las transcripciones</button>
           <button id="reintentar" class="hidden btn-secondary" type="button">🔁 Reintentar descarga</button>
         </div>
-        <p class="footer">El archivo ZIP se sirve desde el servicio de transcripciones una vez finaliza el procesamiento.</p>
+        <p class="footer">El archivo ZIP se descarga automáticamente.</p>
       </div>
     </section>
   </main>
@@ -251,7 +251,7 @@
                   if (data.startsWith('DOWNLOAD_URL::')) {
                     const urlFirmada = data.split('::')[1];
                     if (intervaloProgreso) clearInterval(intervaloProgreso);
-                    progreso.textContent += '\n✅ ZIP disponible. Descargando...';
+                    progreso.textContent += '\n✅ ZIP disponible. Está en la carpeta de 'Descargas' del ordenador o pulsando CRTL+J en tu navegador';
                     const a = document.createElement('a');
                     a.href = urlFirmada;
                     a.download = 'transcripciones.zip';
