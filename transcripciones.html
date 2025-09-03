@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ar<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
@@ -251,7 +251,7 @@
                   if (data.startsWith('DOWNLOAD_URL::')) {
                     const urlFirmada = data.split('::')[1];
                     if (intervaloProgreso) clearInterval(intervaloProgreso);
-                    progreso.textContent += '\n✅ ZIP disponible. Está en la carpeta de 'Descargas' del ordenador o pulsando CRTL+J en tu navegador';
+                    progreso.textContent += '\n✅ ZIP disponible. Está en la carpeta de Descargas del ordenador o pulsando CRTL+J en tu navegador';
                     const a = document.createElement('a');
                     a.href = urlFirmada;
                     a.download = 'transcripciones.zip';
