@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generador de URLs UTM</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    input, textarea { width: 100%; margin: 10px 0; padding: 8px; }
+    button { padding: 10px 20px; font-size: 16px; margin-top: 5px; }
+    .box { margin-bottom: 20px; }
+    pre { background: #f4f4f4; padding: 10px; border-radius: 6px; overflow-x: auto; }
+    h3 { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h2>Generador de URLs UTM</h2>
+
+  <label>Introduce las URLs (una por línea):</label>
+  <textarea id="urls" rows="5"></textarea>
+
+  <label>Sección:</label>
+  <input type="text" id="section">
+
+  <button onclick="generar()">Generar URLs</button>
+
+  <div id="result"></div>
+
+  <script>
+    function generar() {
+      const urls = document.getElementById("urls").value.trim().split("\n");
+      const section = document.getElementById("section").value.trim();
+      const result = document.getElementById("result");
+      result.innerHTML = "";
+
+      if (!urls[0] || !section) {
+        alert("Por favor, introduce al menos una URL y una sección.");
+        return;
+      }
+
+      urls.forEach((url, index) => {
+        if (!url) return;
+
+        let story = `${url}?utm_source=instagram&utm_medium=social&utm_campaign=${encodeURIComponent(section)}&utm_content=story`;
+        let post  = `${url}?utm_source=later&utm_medium=linkinbio&utm_campaign=${encodeURIComponent(section)}&utm_content=post`;
+
+        result.innerHTML += `
+          <div class="box">
+            <h3>Story de Instagram</h3>
+            <pre id="story-${index}">${story}</pre>
+            <button onclick="copiar('story-${index}')">Copiar</button>
+          </div>
+          <div class="box">
+            <h3>Post de Instagram</h3>
+            <pre id="post-${index}">${post}</pre>
+            <button onclick="copiar('post-${index}')">Copiar</button>
+          </div>
+        `;
+      });
+    }
+
+    function copiar(id) {
+      const text = document.getElementById(id).innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert("Copiado al portapapeles ✅");
+      });
+    }
+  </script>
+</body>
+</html>
