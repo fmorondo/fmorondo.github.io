@@ -4,30 +4,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Generador de URLs UTM con Bitly</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    input, textarea { width: 100%; margin: 10px 0; padding: 8px; }
-    button { padding: 8px 16px; font-size: 14px; margin: 5px 5px 10px 0; }
-    .box { margin-bottom: 20px; }
-    pre { background: #f4f4f4; padding: 10px; border-radius: 6px; overflow-x: auto; }
-    h3 { margin-top: 20px; }
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h2>Generador de URLs UTM con Bitly</h2>
+  <header>
+    <div class="brand">🔗 Generador de URLs UTM</div>
+  </header>
 
-  <label>Introduce las URLs (una por línea):</label>
-  <textarea id="urls" rows="5"></textarea>
+  <main>
+    <div class="card stack">
+      <h1 class="title">Crear enlaces UTM</h1>
 
-  <label>Sección:</label>
-  <input type="text" id="section">
+      <label>Introduce las URLs (una por línea):</label>
+      <textarea id="urls" rows="5"></textarea>
 
-  <button onclick="generar()">Generar URLs</button>
+      <label>Sección:</label>
+      <input type="text" id="section">
 
-  <div id="result"></div>
+      <button onclick="generar()">Generar URLs</button>
+    </div>
+
+    <div class="card stack" id="result"></div>
+  </main>
 
   <script>
-    // 🚨 Token de Bitly incrustado (no recomendado en producción)
     const BITLY_TOKEN = "a618c7858360f53f016021726c39d7949588d6ed";
 
     async function acortar(url) {
@@ -40,16 +40,10 @@
           },
           body: JSON.stringify({ long_url: url })
         });
-
-        if (!resp.ok) {
-          console.error("Error Bitly:", await resp.text());
-          return url; // si falla, devolvemos la URL larga
-        }
-
+        if (!resp.ok) return url;
         const data = await resp.json();
         return data.link;
       } catch (err) {
-        console.error("Error al acortar:", err);
         return url;
       }
     }
@@ -61,13 +55,12 @@
       result.innerHTML = "";
 
       if (!urls[0] || !section) {
-        alert("Por favor, introduce al menos una URL y una sección.");
+        alert("Introduce al menos una URL y una sección.");
         return;
       }
 
       urls.forEach((url, i) => {
         if (!url) return;
-
         let story = `${url}?utm_source=instagram&utm_medium=social&utm_campaign=${encodeURIComponent(section)}&utm_content=story`;
         let post  = `${url}?utm_source=later&utm_medium=linkinbio&utm_campaign=${encodeURIComponent(section)}&utm_content=post`;
 
@@ -78,11 +71,13 @@
 
     function crearCaja(id, titulo, url) {
       return `
-        <div class="box">
+        <div class="stack">
           <h3>${titulo}</h3>
-          <pre id="${id}">${url}</pre>
-          <button onclick="copiar('${id}')">Copiar</button>
-          <button onclick="acortarCaja('${id}')">Acortar</button>
+          <div class="result" id="${id}">${url}</div>
+          <div class="row">
+            <button onclick="copiar('${id}')">Copiar</button>
+            <button onclick="acortarCaja('${id}')">Acortar</button>
+          </div>
         </div>
       `;
     }
@@ -90,7 +85,7 @@
     function copiar(id) {
       const text = document.getElementById(id).innerText;
       navigator.clipboard.writeText(text).then(() => {
-        alert("Copiado al portapapeles ✅");
+        alert("Copiado ✅");
       });
     }
 
@@ -98,17 +93,15 @@
       const caja = document.getElementById(id);
       const urlOriginal = caja.innerText;
       const urlCorta = await acortar(urlOriginal);
-
       caja.innerText = urlCorta;
 
-      // añadir botón de copiar si no está
       const contenedor = caja.parentElement;
       if (!contenedor.querySelector(`#copiar-corto-${id}`)) {
         const btn = document.createElement("button");
         btn.id = `copiar-corto-${id}`;
         btn.textContent = "Copiar (corta)";
         btn.onclick = () => copiar(id);
-        contenedor.appendChild(btn);
+        contenedor.querySelector(".row").appendChild(btn);
       }
     }
   </script>
