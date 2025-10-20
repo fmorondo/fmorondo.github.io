@@ -61,11 +61,19 @@
 
       urls.forEach((url, i) => {
         if (!url) return;
+
+        // Instagram Story
         let story = `${url}?utm_source=instagram&utm_medium=social&utm_campaign=${encodeURIComponent(section)}&utm_content=story`;
-        let post  = `${url}?utm_source=later&utm_medium=linkinbio&utm_campaign=${encodeURIComponent(section)}&utm_content=post`;
+
+        // Instagram Post
+        let post = `${url}?utm_source=later&utm_medium=linkinbio&utm_campaign=${encodeURIComponent(section)}&utm_content=post`;
+
+        // WhatsApp
+        let whatsapp = `${url}?utm_source=Whatsapp&utm_medium=enlace&utm_campaign=${encodeURIComponent(section)}&utm_id=alerta_comunidad`;
 
         result.innerHTML += crearCaja(`story-${i}`, "Story de Instagram", story);
         result.innerHTML += crearCaja(`post-${i}`, "Post de Instagram", post);
+        result.innerHTML += crearCaja(`whatsapp-${i}`, "WhatsApp", whatsapp);
       });
     }
 
