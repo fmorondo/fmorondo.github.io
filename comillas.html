@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Conversor de comillas · Diario de Navarra</title>
+  <meta name="description" content="Utilidad para sustituir comillas angulares por comillas altas" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+      Diario de Navarra · Utilidades
+      <span class="badge">Conversor</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="card stack">
+      <div class="stack" style="gap:6px">
+        <h1 class="title">✍️ Conversor de comillas</h1>
+        <p class="subtitle">Convierte automáticamente las comillas angulares (« ») en comillas altas (“ ”). Puedes pegar texto o subir un archivo .txt.</p>
+      </div>
+
+      <details>
+        <summary>📘 Instrucciones de uso</summary>
+        <div class="panel">
+          <ul>
+            <li>Puedes <strong>pegar el texto</strong> directamente en el cuadro inferior o <strong>subir un archivo .txt</strong>.</li>
+            <li>Pulsa en <em>Convertir</em> para sustituir las comillas angulares por comillas altas.</li>
+            <li>Si has cargado un archivo, podrás <strong>descargar</strong> el texto corregido como un nuevo .txt.</li>
+            <li>El proceso se realiza íntegramente en tu navegador: ningún dato se envía a internet.</li>
+          </ul>
+        </div>
+      </details>
+
+      <div class="stack">
+        <label for="fileInput">Archivo de texto (opcional):</label>
+        <input type="file" id="fileInput" accept=".txt">
+
+        <label for="inputText">Texto original:</label>
+        <textarea id="inputText" placeholder="Pega aquí el texto con comillas angulares"></textarea>
+
+        <div class="row">
+          <button id="convertir">🔄 Convertir</button>
+          <button id="descargar" class="btn-secondary" type="button">📥 Descargar resultado</button>
+        </div>
+
+        <label for="outputText">Texto corregido:</label>
+        <textarea id="outputText" placeholder="Aquí aparecerá el texto con comillas altas"></textarea>
+      </div>
+    </section>
+
+    <p class="footer">Diario de Navarra · Laboratorio de IA y automatización editorial</p>
+  </main>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const inputText = document.getElementById('inputText');
+    const outputText = document.getElementById('outputText');
+    const btnConvertir = document.getElementById('convertir');
+    const btnDescargar = document.getElementById('descargar');
+
+    // Cargar archivo .txt
+    fileInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => inputText.value = ev.target.result;
+      reader.readAsText(file, 'UTF-8');
+    });
+
+    // Convertir comillas
+    btnConvertir.addEventListener('click', () => {
+      const texto = inputText.value;
+      const convertido = texto
+        .replace(/«/g, '“')
+        .replace(/»/g, '”')
+        .replace(/““/g, '“')
+        .replace(/””/g, '”');
+      outputText.value = convertido;
+    });
+
+    // Descargar resultado
+    btnDescargar.addEventListener('click', () => {
+      const texto = outputText.value;
+      if (!texto) {
+        alert('No hay texto para descargar.');
+        return;
+      }
+      const blob = new Blob([texto], { type: 'text/plain;charset=utf-8' });
+      const enlace = document.createElement('a');
+      enlace.href = URL.createObjectURL(blob);
+      enlace.download = 'texto_corregido.txt';
+      enlace.click();
+      URL.revokeObjectURL(enlace.href);
+    });
+  </script>
+
+</body>
+</html>
