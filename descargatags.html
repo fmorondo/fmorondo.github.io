@@ -47,7 +47,7 @@
       var tagid = document.getElementById('tagid').value.trim();
       if (tagid !== "") {
         var destino = document.createElement('a');
-        destino.href = "https://its.diariodenavarra.es/privado/tag-news/xalok/api_1.php?q=tag-news&tagid=" + encodeURIComponent(tagid) + "&htmltags=remove";
+        destino.href = "https://its.diariodenavarra.es/privado/tag-news/xalok/api_tags.php?tagid=" + encodeURIComponent(tagid) + "&htmltags=remove";
         destino.target = "_blank";
         destino.rel = "noopener";
         destino.click();
