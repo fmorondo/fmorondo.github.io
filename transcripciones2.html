@@ -14,7 +14,315 @@
   <header>
     <div class="brand">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+      Diario de Navarra · Utilidades<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Transcriptor de entrevistas · Diario de Navarra</title>
+  <meta name="description" content="Interfaz clara para subir audios y descargar transcripciones en ZIP" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
       Diario de Navarra · Utilidades
+      <span class="badge">Transcriptor</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="card stack" aria-labelledby="titulo">
+      <div class="stack" style="gap:6px">
+        <h1 id="titulo" class="title">📝 Transcriptor de entrevistas</h1>
+        <p class="subtitle">Sube un audio y descarga automáticamente las transcripciones en un zip cuando el sistema termina el procesamiento.</p>
+      </div>
+
+      <details>
+        <summary>📘 Haz clic aquí para instrucciones, sobre todo si no lo has usado.</summary>
+        <div class="panel">
+          <p>Este es un sistema en pruebas de transcripción de entrevistas y ruedas de prensa. En esta versión funciona de la siguiente forma:</p>
+          <ul>
+            <li>Elige un archivo. Es mejor que le hayas puesto un nombre claro y que no llegue a media hora de duración.</li>
+            <li>Si necesitas cortarlo, puedes utilizar este servicioen la web: https://mp3cut.net/es/</li>
+            <li>Selecciona el idioma original y la plantilla (prompt) que se usará para corregir/formatear. Hay versiones para entrevistas y ruedas de prensa o conferencias. La versión para ruedas de prensa está todavía en una fase preliminar.</li>
+            <li>Pulsa en <strong>Subir el archivo y procesarlo</strong>.</li>
+            <li>El sistema va informando de los pasos que da.</li>
+            <li>Al final se descargará el ZIP automáticamente.</li>
+          </ul>
+        </div>
+      </details>
+
+      <label for="archivo">Selecciona un archivo de audio (menos de media hora):</label>
+      <input type="file" id="archivo" accept="audio/*" />
+
+      <div class="row" style="gap:12px; align-items:center; flex-wrap:wrap;">
+        <label for="idioma">Idioma original:</label>
+        <select id="idioma">
+          <option value="es" selected>Español</option>
+          <option value="en">Inglés</option>
+          <option value="fr">Francés</option>
+          <option value="auto">Detectar automáticamente</option>
+        </select>
+
+        <label for="prompt">Plantilla (prompt):</label>
+        <select id="prompt">
+          <option value="entrevista" selected>Entrevista (preguntas y respuestas)</option>
+          <option value="rueda_prensa">Rueda de prensa/ conferencias/ entrevistas a varias personas</option>
+          </select>
+      </div>
+
+      <div style="padding: 10px 12px; background-color: #f9f9f9; border-radius: 6px; margin-top: 4px;">
+        <label for="contexto_navarra" style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500;">
+          <input type="checkbox" id="contexto_navarra" style="width: 16px; height: 16px; margin: 0;">
+          <span>Usar contexto de Navarra (localidades/apellidos)</span>
+        </label>
+      </div>
+
+      <div class="row">
+        <button id="subir">📤 Subir el archivo y procesarlo</button>
+        <button id="limpiar" class="btn-secondary" type="button">Quitar archivo</button>
+      </div>
+
+      <div class="stack">
+        <h3 style="margin:8px 0 0 0">Progreso</h3>
+        <pre id="progreso" class="result">Esperando archivo...</pre>
+        <div class="row">
+          <button id="descargar" class="hidden">📥 Descargar las transcripciones</button>
+          <button id="reintentar" class="hidden btn-secondary" type="button">🔁 Reintentar descarga</button>
+        </div>
+        <p class="footer">El archivo ZIP se descarga automáticamente.</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Cambia esta URL según el entorno: staging o producción
+    // Staging: https://transcriptor-prompts-811896322472.europe-west1.run.app
+    // Prod:    https://transcriptor-servicio-811896322472.europe-west1.run.app/
+    const BASE_URL = 'https://transcriptor-prompts-811896322472.europe-west1.run.app';
+
+    const archivoInput = document.getElementById('archivo');
+    const subirBtn = document.getElementById('subir');
+    const limpiarBtn = document.getElementById('limpiar');
+    const progreso = document.getElementById('progreso');
+    const botonDescargar = document.getElementById('descargar');
+    const botonReintentar = document.getElementById('reintentar');
+    const selIdioma = document.getElementById('idioma');
+    const selPrompt = document.getElementById('prompt');
+    const checkContexto = document.getElementById('contexto_navarra'); // <-- NUEVA VARIABLE
+
+    let zipDescargable = null;      // nombre del ZIP para fallback local
+    let nombreZipPendiente = null;  // idem
+    let intervaloProgreso = null;
+
+    function bloquearUI(b) {
+      subirBtn.disabled = b;
+      limpiarBtn.disabled = b;
+      archivoInput.disabled = b;
+      selIdioma.disabled = b;
+      selPrompt.disabled = b;
+      checkContexto.disabled = b; // <-- AÑADIDO
+    }
+
+    limpiarBtn.addEventListener('click', () => {
+      archivoInput.value = '';
+      checkContexto.checked = false; // <-- AÑADIDO
+      zipDescargable = null;
+      nombreZipPendiente = null;
+      botonDescargar.classList.add('hidden');
+      botonReintentar.classList.add('hidden');
+      progreso.textContent = 'Esperando archivo...';
+      if (intervaloProgreso) clearInterval(intervaloProgreso);
+      bloquearUI(false);
+      archivoInput.focus();
+    });
+
+    subirBtn.addEventListener('click', async () => {
+      const archivo = archivoInput.files[0];
+      if (!archivo) { alert('Selecciona un archivo.'); return; }
+
+      progreso.textContent = '🔐 Preparando la subida...';
+      botonDescargar.classList.add('hidden');
+      botonReintentar.classList.add('hidden');
+      bloquearUI(true);
+
+      // 1) Pide URL firmada para subir a GCS
+   try {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), 15000); // 15s de timeout por si queda colgado
+
+  const respuesta = await fetch(`${BASE_URL}/firmar-subida`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre_archivo: archivo.name }),
+    signal: ac.signal
+  });
+  clearTimeout(t);
+
+  if (!respuesta.ok) {
+    let detalle = '';
+    try { const j = await respuesta.json(); detalle = j.error ? ` Detalle: ${j.error}` : ''; } catch {}
+    progreso.textContent = '❌ Error al generar URL de subida.' + detalle;
+    bloquearUI(false);
+    return;
+  }
+
+  var { signed_url, gs_uri } = await respuesta.json(); // usa var para que exista fuera del try
+} catch (err) {
+  progreso.textContent = '❌ No se pudo contactar con el servicio (/firmar-subida).';
+  if (err && err.name === 'AbortError') {
+    progreso.textContent += ' Detalle: timeout (15s).';
+  } else if (err && err.message) {
+    progreso.textContent += ` Detalle: ${err.message}`;
+  }
+  bloquearUI(false);
+  return;
+}
+
+      // 2) Sube el archivo con PUT
+      progreso.textContent += '\n⬆️ Subiendo el archivo...';
+      try {
+        const uploadResp = await fetch(signed_url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: archivo
+        });
+
+        if (!uploadResp.ok) {
+          progreso.textContent += `\n❌ Error al subir el archivo. Código: ${uploadResp.status}`;
+          bloquearUI(false);
+          return;
+        }
+
+        progreso.textContent += '\n✅ Subida completada. Procesando...';
+        iniciarSSE(gs_uri);
+
+      } catch (err) {
+        progreso.textContent += `\n❌ Error de red durante la subida: ${err}`;
+        bloquearUI(false);
+      }
+    });
+
+    botonDescargar.addEventListener('click', () => {
+      if (!zipDescargable) return;
+      const url = `${BASE_URL}/descargar/` + zipDescargable;
+
+      const descargar = (intentos = 0) => {
+        fetch(url, { method: 'HEAD' }).then(res => {
+          if (res.ok) {
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = zipDescargable;
+            enlace.click();
+          } else {
+            if (intentos < 4) {
+              progreso.textContent += `\n⏳ ZIP aún no listo para descargar (intento ${intentos + 1}). Reintentando...`;
+              setTimeout(() => descargar(intentos + 1), 2000);
+            } else {
+              progreso.textContent += `\n❌ No se pudo descargar el ZIP después de varios intentos.`;
+            }
+          }
+        }).catch(() => {
+          if (intentos < 4) { setTimeout(() => descargar(intentos + 1), 2000); }
+          else { progreso.textContent += `\n❌ Error al intentar descargar el ZIP.`; }
+        });
+      };
+
+      descargar();
+    });
+
+    botonReintentar.addEventListener('click', () => {
+      if (nombreZipPendiente) verificarZIP(nombreZipPendiente);
+    });
+
+    function iniciarSSE(gs_uri) {
+      progreso.textContent += `\n🎛️ Modo: prompt=${selPrompt.value}, idioma=${selIdioma.value}\n`;
+      progreso.textContent += '\n🧠 Procesando audio...\n';
+      zipDescargable = null;
+      nombreZipPendiente = null;
+      botonDescargar.classList.add('hidden');
+      botonReintentar.classList.add('hidden');
+
+      // --- BLOQUE MODIFICADO ---
+      // Construir URL dinámicamente
+      let url = `${BASE_URL}/transcribir-stream` +
+                  `?gcs_uri=${encodeURIComponent(gs_uri)}` +
+                  `&source_lang=${encodeURIComponent(selIdioma.value)}` +
+                  `&prompt_id=${encodeURIComponent(selPrompt.value)}`;
+      
+      // Añadir parámetro de contexto si está marcado
+      if (checkContexto.checked) {
+        url += '&usar_contexto_navarra=true';
+        progreso.textContent += '\n🌍 Aplicando contexto de Navarra...';
+      }
+      // --- FIN DEL BLOQUE MODIFICADO ---
+
+      if (intervaloProgreso) clearInterval(intervaloProgreso);
+      intervaloProgreso = setInterval(() => {
+        progreso.textContent += '\n⏳ Seguimos trabajando...\n';
+      }, 30000);
+
+      fetch(url, { method: 'POST' })
+        .then(response => {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder('utf-8');
+
+          const read = () => {
+            reader.read().then(({ done, value }) => {
+              if (done) { if (intervaloProgreso) clearInterval(intervaloProgreso); bloquearUI(false); return; }
+              const chunk = decoder.decode(value, { stream: true });
+              chunk.split('\n\n').forEach(block => {
+                const match = block.match(/^data:\s*(.*)$/m);
+                if (match) {
+                  const data = match[1];
+
+                  // Descarga directa desde GCS (sin esperas)
+                  if (data.startsWith('DOWNLOAD_URL::')) {
+                    const urlFirmada = data.split('::')[1];
+                    if (intervaloProgreso) clearInterval(intervaloProgreso);
+                    progreso.textContent += '\n✅ ZIP disponible. Está en la carpeta de Descargas del ordenador o pulsando CRTL+J en tu navegador';
+                    const a = document.createElement('a');
+                    a.href = urlFirmada;
+                    a.download = 'transcripciones.zip';
+                    a.rel = 'noopener';
+                    a.click();
+                    botonDescargar.classList.add('hidden');
+                    botonReintentar.classList.add('hidden');
+                    bloquearUI(false);
+                    return;
+                  }
+
+                  // Fallback clásico: /descargar/<zip> desde el backend
+                  if (data.startsWith('DOWNLOAD::')) {
+                    const nombreZip = data.split('::')[1];
+                    nombreZipPendiente = nombreZip;
+                    progreso.textContent += `\n🕒 Esperando 30 segundos antes de verificar la descarga...`;
+                    setTimeout(() => { verificarZIP(nombreZip); }, 30000);
+                  } else {
+                    progreso.textContent += data + '\n';
+                  }
+                }
+              });
+              read();
+            });
+          };
+          read();
+        })
+        .catch(() => {
+          if (intervaloProgreso) clearInterval(intervaloProgreso);
+          progreso.textContent += '\n❌ Error al iniciar el procesamiento.';
+          bloquearUI(false);
+        });
+    }
+
+    async function verificarZIP(nombreZip, intentos = 0) {
+      const urlZip = `${BASE_URL}/descargar/` + nombreZip;
+      progreso.textContent
       <span class="badge">Transcriptor</span>
     </div>
   </header>
