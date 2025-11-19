@@ -1,0 +1,9 @@
+# Directorio de dependencias
+node_modules/
+
+# Directorio de compilación
+dist/
+
+# Archivos de caché/sistema
+.DS_Store
+*.log
