@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Descarga de Audio (YouTube, Instagram, TikTok)</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/x-icon" href="https://fmorondo.github.io/favicon.ico">
+    <meta name="robots" content="noindex, nofollow">
+</head>
+<body>
+    <div id="wrapper">
+        <div id="sidebar">
+            <h1 class="logo">
+                <a href="index.html">FMORONDO.GITHUB.IO</a>
+            </h1>
+            <ul class="nav">
+                <li><a href="koldo.html">KoldoGPT</a></li>
+                <li><a href="herramientaskoldo.html">Herramientas Koldo</a></li>
+                <li><a href="transcripciones.html">Servicio de Transcripción</a></li>
+                <li><a href="descargar-audio.html" class="active">Descarga de Audio</a></li>
+            </ul>
+        </div>
+
+        <div id="content">
+            <div id="page-content">
+                <h1 class="page-title">🎶 Descarga de Audio</h1>
+                <p>Introduce el enlace del vídeo (YouTube, Instagram, TikTok, etc.) para descargar la pista de audio en formato MP3 (192 Kbps).</p>
+                <hr>
+
+                <div class="input-section">
+                    <label for="video-url">Enlace del Video:</label>
+                    <input type="url" id="video-url" placeholder="https://www.youtube.com/watch?v=..." required>
+                    <button id="download-button" onclick="iniciarDescarga()">Descargar Audio</button>
+                </div>
+
+                <div id="status-message" class="message-box" style="display: none;"></div>
+                
+                <div id="progress-container" style="display: none;">
+                    <p>Procesando el audio... (esto puede tardar varios minutos si el vídeo es largo)</p>
+                    <progress id="progress-bar" value="0" max="100"></progress>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Endpoint de tu servicio de Cloud Run
+        const CLOUD_RUN_ENDPOINT = "https://descarga-audio-811896322472.europe-west1.run.app/download";
+
+        const urlInput = document.getElementById('video-url');
+        const downloadButton = document.getElementById('download-button');
+        const statusMessage = document.getElementById('status-message');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+
+        function showMessage(message, isError = false) {
+            statusMessage.textContent = message;
+            statusMessage.className = isError ? 'message-box error' : 'message-box success';
+            statusMessage.style.display = 'block';
+        }
+
+        function toggleLoading(isLoading) {
+            urlInput.disabled = isLoading;
+            downloadButton.disabled = isLoading;
+            downloadButton.textContent = isLoading ? 'Procesando...' : 'Descargar Audio';
+            progressContainer.style.display = isLoading ? 'block' : 'none';
+            progressBar.value = isLoading ? 50 : 0;
+            statusMessage.style.display = 'none';
+        }
+
+        async function iniciarDescarga() {
+            const urlVideo = urlInput.value.trim();
+
+            if (!urlVideo) {
+                showMessage("Por favor, introduce una URL de vídeo válida.", true);
+                return;
+            }
+
+            toggleLoading(true);
+
+            try {
+                const response = await fetch(CLOUD_RUN_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: urlVideo }),
+                });
+
+                if (!response.ok) {
+                    let errorMessage = `Error ${response.status}: ${response.statusText}`;
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorMessage;
+                    } catch (e) {
+                        // Ignorar si no es JSON (ej. si es un error de timeout 504)
+                        if (response.status === 504) {
+                            errorMessage = "Tiempo de espera agotado (Timeout). El vídeo es demasiado largo o el servicio está saturado.";
+                        }
+                    }
+                    showMessage(`❌ Error en el servicio: ${errorMessage}`, true);
+                    return;
+                }
+
+                // Si la respuesta es exitosa (código 200), el servidor devuelve el archivo (blob)
+                const blob = await response.blob();
+                
+                // Obtener el nombre del archivo de la cabecera Content-Disposition
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let filename = 'audio_descargado.mp3';
+                if (contentDisposition) {
+                    const match = contentDisposition.match(/filename="?([^"]+)"?/);
+                    if (match && match[1]) {
+                        filename = match[1];
+                    }
+                }
+
+                // Crea un enlace temporal y simula un clic para forzar la descarga
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                showMessage(`✅ Descarga iniciada con éxito! Archivo: ${filename}`);
+
+            } catch (error) {
+                console.error('Error de red, CORS o conexión:', error);
+                showMessage('❌ Fallo de conexión o red con el servicio de Cloud Run.', true);
+            } finally {
+                toggleLoading(false);
+            }
+        }
+    </script>
+</body>
+</html>
