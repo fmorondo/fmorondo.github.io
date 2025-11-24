@@ -1,198 +1,140 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Descarga de audio · Diario de Navarra</title>
-  <meta name="description" content="Descarga el audio en MP3 de vídeos de YouTube, Instagram, TikTok y otras plataformas." />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
-  <link rel="icon" type="image/x-icon" href="https://fmorondo.github.io/favicon.ico">
-  <meta name="robots" content="noindex, nofollow">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Descarga de Audio (YouTube, Instagram, TikTok)</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/x-icon" href="https://fmorondo.github.io/favicon.ico">
+    <meta name="robots" content="noindex, nofollow">
 </head>
 <body>
-  <header>
-    <div class="brand">
-      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M12 20V10" />
-        <path d="M18 20V4" />
-        <path d="M6 20v-4" />
-      </svg>
-      Diario de Navarra · Utilidades
-      <span class="badge">Descarga audio</span>
+    <div id="wrapper">
+        <div id="sidebar">
+            <h1 class="logo">
+                <a href="index.html">FMORONDO.GITHUB.IO</a>
+            </h1>
+            <ul class="nav">
+                <li><a href="koldo.html">KoldoGPT</a></li>
+                <li><a href="herramientaskoldo.html">Herramientas Koldo</a></li>
+                <li><a href="transcripciones.html">Servicio de Transcripción</a></li>
+                <li><a href="descargar-audio.html" class="active">Descarga de Audio</a></li>
+            </ul>
+        </div>
+
+        <div id="content">
+            <div id="page-content">
+                <h1 class="page-title">🎶 Descarga de Audio</h1>
+                <p>Introduce el enlace del vídeo (YouTube, Instagram, TikTok, etc.) para descargar la pista de audio en formato MP3 (192 Kbps).</p>
+                <hr>
+
+                <div class="input-section">
+                    <label for="video-url">Enlace del Video:</label>
+                    <input type="url" id="video-url" placeholder="https://www.youtube.com/watch?v=..." required>
+                    <button id="download-button" onclick="iniciarDescarga()">Descargar Audio</button>
+                </div>
+
+                <div id="status-message" class="message-box" style="display: none;"></div>
+                
+                <div id="progress-container" style="display: none;">
+                    <p>Procesando el audio... (esto puede tardar varios minutos si el vídeo es largo)</p>
+                    <progress id="progress-bar" value="0" max="100"></progress>
+                </div>
+            </div>
+        </div>
     </div>
-  </header>
 
-  <main>
-    <section class="card stack" aria-labelledby="titulo">
-      <div class="stack" style="gap:6px">
-        <h1 id="titulo" class="title">🎶 Descarga de audio de vídeos</h1>
-        <p class="subtitle">
-          Pega el enlace de un vídeo (YouTube, Instagram, TikTok, etc.) y descarga la pista de audio en MP3 (192 Kbps).
-        </p>
-      </div>
+    <script>
+        // Endpoint de tu servicio de Cloud Run
+        const CLOUD_RUN_ENDPOINT = "https://descarga-audio-811896322472.europe-west1.run.app/download";
 
-      <details>
-        <summary>📘 Cómo usar este servicio</summary>
-        <div class="panel">
-          <ul>
-            <li>Pega la URL completa del vídeo en el campo de abajo.</li>
-            <li>Comprueba que el vídeo no sea excesivamente largo (puede tardar varios minutos).</li>
-            <li>Pulsa en <strong>Descargar audio</strong> y espera a que termine el proceso.</li>
-            <li>Cuando esté listo, el navegador iniciará la descarga del archivo MP3 automáticamente.</li>
-          </ul>
-        </div>
-      </details>
+        const urlInput = document.getElementById('video-url');
+        const downloadButton = document.getElementById('download-button');
+        const statusMessage = document.getElementById('status-message');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
 
-      <div class="stack">
-        <label for="video-url">Enlace del vídeo:</label>
-        <input
-          type="url"
-          id="video-url"
-          placeholder="https://www.youtube.com/watch?v=..."
-          required
-        />
-      </div>
+        function showMessage(message, isError = false) {
+            statusMessage.textContent = message;
+            statusMessage.className = isError ? 'message-box error' : 'message-box success';
+            statusMessage.style.display = 'block';
+        }
 
-      <div class="row">
-        <button id="download-button" type="button">📥 Descargar audio</button>
-        <button id="limpiar" class="btn-secondary" type="button">Limpiar campo</button>
-      </div>
+        function toggleLoading(isLoading) {
+            urlInput.disabled = isLoading;
+            downloadButton.disabled = isLoading;
+            downloadButton.textContent = isLoading ? 'Procesando...' : 'Descargar Audio';
+            progressContainer.style.display = isLoading ? 'block' : 'none';
+            progressBar.value = isLoading ? 50 : 0;
+            statusMessage.style.display = 'none';
+        }
 
-      <div class="stack">
-        <h3 style="margin:8px 0 0 0">Progreso</h3>
-        <pre id="status-message" class="result">Esperando URL...</pre>
+        async function iniciarDescarga() {
+            const urlVideo = urlInput.value.trim();
 
-        <div id="progress-container" class="progress" style="display:none;">
-          <div id="progress-bar"></div>
-        </div>
-
-        <p class="footer">
-          El archivo MP3 se descargará automáticamente cuando el servicio lo haya generado.
-        </p>
-      </div>
-    </section>
-  </main>
-
-  <script>
-    // Endpoint de tu servicio de Cloud Run
-    const CLOUD_RUN_ENDPOINT = "https://descarga-audio-811896322472.europe-west1.run.app/download";
-
-    const urlInput = document.getElementById('video-url');
-    const downloadButton = document.getElementById('download-button');
-    const limpiarBtn = document.getElementById('limpiar');
-    const statusMessage = document.getElementById('status-message');
-    const progressContainer = document.getElementById('progress-container');
-    const progressBar = document.getElementById('progress-bar');
-
-    function showMessage(message, isError = false) {
-      statusMessage.textContent = message;
-      statusMessage.className = 'result';
-      if (isError) {
-        // Estilo de error simple usando colores del tema
-        statusMessage.style.borderColor = '#ef4444';
-        statusMessage.style.color = '#b91c1c';
-        statusMessage.style.backgroundColor = '#fef2f2';
-      } else {
-        statusMessage.style.borderColor = '';
-        statusMessage.style.color = '';
-        statusMessage.style.backgroundColor = '';
-      }
-      statusMessage.style.display = 'block';
-    }
-
-    function toggleLoading(isLoading) {
-      urlInput.disabled = isLoading;
-      downloadButton.disabled = isLoading;
-      limpiarBtn.disabled = isLoading;
-      downloadButton.textContent = isLoading ? 'Procesando…' : '📥 Descargar audio';
-      progressContainer.style.display = isLoading ? 'block' : 'none';
-      progressBar.style.width = isLoading ? '50%' : '0%';
-      // Ocultamos momentáneamente el mensaje mientras procesamos
-      if (isLoading) {
-        statusMessage.style.display = 'none';
-      }
-    }
-
-    limpiarBtn.addEventListener('click', () => {
-      urlInput.value = '';
-      urlInput.focus();
-      progressContainer.style.display = 'none';
-      progressBar.style.width = '0%';
-      showMessage('Esperando URL...');
-    });
-
-    async function iniciarDescarga() {
-      const urlVideo = urlInput.value.trim();
-
-      if (!urlVideo) {
-        showMessage("Por favor, introduce una URL de vídeo válida.", true);
-        return;
-      }
-
-      toggleLoading(true);
-
-      try {
-        const response = await fetch(CLOUD_RUN_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ url: urlVideo }),
-        });
-
-        if (!response.ok) {
-          let errorMessage = `Error ${response.status}: ${response.statusText}`;
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorMessage;
-          } catch (e) {
-            // Ignorar si no es JSON (ej. si es un error de timeout 504)
-            if (response.status === 504) {
-              errorMessage = "Tiempo de espera agotado (Timeout). El vídeo es demasiado largo o el servicio está saturado.";
+            if (!urlVideo) {
+                showMessage("Por favor, introduce una URL de vídeo válida.", true);
+                return;
             }
-          }
-          showMessage(`❌ Error en el servicio: ${errorMessage}`, true);
-          return;
+
+            toggleLoading(true);
+
+            try {
+                const response = await fetch(CLOUD_RUN_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: urlVideo }),
+                });
+
+                if (!response.ok) {
+                    let errorMessage = `Error ${response.status}: ${response.statusText}`;
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorMessage;
+                    } catch (e) {
+                        // Ignorar si no es JSON (ej. si es un error de timeout 504)
+                        if (response.status === 504) {
+                            errorMessage = "Tiempo de espera agotado (Timeout). El vídeo es demasiado largo o el servicio está saturado.";
+                        }
+                    }
+                    showMessage(`❌ Error en el servicio: ${errorMessage}`, true);
+                    return;
+                }
+
+                // Si la respuesta es exitosa (código 200), el servidor devuelve el archivo (blob)
+                const blob = await response.blob();
+                
+                // Obtener el nombre del archivo de la cabecera Content-Disposition
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let filename = 'audio_descargado.mp3';
+                if (contentDisposition) {
+                    const match = contentDisposition.match(/filename="?([^"]+)"?/);
+                    if (match && match[1]) {
+                        filename = match[1];
+                    }
+                }
+
+                // Crea un enlace temporal y simula un clic para forzar la descarga
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                showMessage(`✅ Descarga iniciada con éxito! Archivo: ${filename}`);
+
+            } catch (error) {
+                console.error('Error de red, CORS o conexión:', error);
+                showMessage('❌ Fallo de conexión o red con el servicio de Cloud Run.', true);
+            } finally {
+                toggleLoading(false);
+            }
         }
-
-        // Si la respuesta es exitosa (código 200), el servidor devuelve el archivo (blob)
-        const blob = await response.blob();
-
-        // Obtener el nombre del archivo de la cabecera Content-Disposition
-        const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = 'audio_descargado.mp3';
-        if (contentDisposition) {
-          const match = contentDisposition.match(/filename="?([^"]+)"?/);
-          if (match && match[1]) {
-            filename = match[1];
-          }
-        }
-
-        // Crea un enlace temporal y simula un clic para forzar la descarga
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-
-        progressBar.style.width = '100%';
-        showMessage(`✅ Descarga iniciada con éxito. Archivo: ${filename}`);
-
-      } catch (error) {
-        console.error('Error de red, CORS o conexión:', error);
-        showMessage('❌ Fallo de conexión o red con el servicio de Cloud Run.', true);
-      } finally {
-        toggleLoading(false);
-      }
-    }
-
-    downloadButton.addEventListener('click', iniciarDescarga);
-  </script>
+    </script>
 </body>
 </html>
