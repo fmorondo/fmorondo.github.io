@@ -1,0 +1,9 @@
+# Dependencias de desarrollo
+node_modules/
+
+# Artefactos de compilación (si decides usar Vite en el futuro)
+dist/
+
+# Archivos de sistema/editor
+.DS_Store
+*.log
