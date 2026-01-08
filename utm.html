@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Generador de URLs UTM con Bitly</title>
+  <title>Generador de URLs UTM con is.gd</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -21,82 +21,97 @@
       <label>Sección:</label>
       <input type="text" id="section">
 
-      <button onclick="generar()">Generar URLs</button>
+      <button id="btn-generar">Generar URLs</button>
     </div>
 
     <div class="card stack" id="result"></div>
   </main>
 
   <script>
-    const BITLY_TOKEN = "a618c7858360f53f016021726c39d7949588d6ed";
+    // === Función de acortamiento usando JSONP ===
+    function acortar(url) {
+      return new Promise((resolve) => {
+        const encoded = encodeURIComponent(url);
+        const callbackName = "jsonp_" + Math.random().toString(36).substring(2);
+        const script = document.createElement("script");
 
-    async function acortar(url) {
-      try {
-        const resp = await fetch("https://api-ssl.bitly.com/v4/shorten", {
-          method: "POST",
-          headers: {
-            "Authorization": "Bearer " + BITLY_TOKEN,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ long_url: url })
-        });
-        if (!resp.ok) return url;
-        const data = await resp.json();
-        return data.link;
-      } catch (err) {
-        return url;
-      }
+        window[callbackName] = (data) => {
+          delete window[callbackName];
+          script.remove();
+          if (data && data.shorturl) {
+            resolve(data.shorturl);
+          } else {
+            resolve(url);
+          }
+        };
+
+        script.src = `https://is.gd/create.php?format=json&callback=${callbackName}&url=${encoded}`;
+        document.body.appendChild(script);
+      });
     }
 
+    // === Generar las URLs con parámetros UTM ===
     function generar() {
-      const urls = document.getElementById("urls").value.trim().split("\n");
+      const urls = document.getElementById("urls").value.trim().split("\n").filter(u => u !== "");
       const section = document.getElementById("section").value.trim();
       const result = document.getElementById("result");
       result.innerHTML = "";
 
-      if (!urls[0] || !section) {
+      if (urls.length === 0 || !section) {
         alert("Introduce al menos una URL y una sección.");
         return;
       }
 
       urls.forEach((url, i) => {
-        if (!url) return;
+        const story = `${url}?utm_source=instagram&utm_medium=social&utm_campaign=${encodeURIComponent(section)}&utm_content=story`;
+        const post  = `${url}?utm_source=later&utm_medium=linkinbio&utm_campaign=${encodeURIComponent(section)}&utm_content=post`;
+        const whatsapp = `${url}?utm_source=Whatsapp&utm_medium=enlace&utm_campaign=${encodeURIComponent(section)}&utm_id=alerta_comunidad`;
 
-        // Instagram Story
-        let story = `${url}?utm_source=instagram&utm_medium=social&utm_campaign=${encodeURIComponent(section)}&utm_content=story`;
-
-        // Instagram Post
-        let post = `${url}?utm_source=later&utm_medium=linkinbio&utm_campaign=${encodeURIComponent(section)}&utm_content=post`;
-
-        // WhatsApp
-        let whatsapp = `${url}?utm_source=Whatsapp&utm_medium=enlace&utm_campaign=${encodeURIComponent(section)}&utm_id=alerta_comunidad`;
-
-        result.innerHTML += crearCaja(`story-${i}`, "Story de Instagram", story);
-        result.innerHTML += crearCaja(`post-${i}`, "Post de Instagram", post);
-        result.innerHTML += crearCaja(`whatsapp-${i}`, "WhatsApp", whatsapp);
+        result.appendChild(crearCaja(`story-${i}`, "Story de Instagram", story));
+        result.appendChild(crearCaja(`post-${i}`, "Post de Instagram", post));
+        result.appendChild(crearCaja(`whatsapp-${i}`, "WhatsApp", whatsapp));
       });
     }
 
+    // === Crear la caja de resultado ===
     function crearCaja(id, titulo, url) {
-      return `
-        <div class="stack">
-          <h3>${titulo}</h3>
-          <div class="result" id="${id}">${url}</div>
-          <div class="row">
-            <button onclick="copiar('${id}')">Copiar</button>
-            <button onclick="acortarCaja('${id}')">Acortar</button>
-          </div>
-        </div>
-      `;
+      const cont = document.createElement("div");
+      cont.className = "stack";
+
+      const h3 = document.createElement("h3");
+      h3.textContent = titulo;
+      cont.appendChild(h3);
+
+      const div = document.createElement("div");
+      div.className = "result";
+      div.id = id;
+      div.textContent = url;
+      cont.appendChild(div);
+
+      const row = document.createElement("div");
+      row.className = "row";
+
+      const btnCopiar = document.createElement("button");
+      btnCopiar.textContent = "Copiar";
+      btnCopiar.onclick = () => copiar(id);
+      row.appendChild(btnCopiar);
+
+      const btnAcortar = document.createElement("button");
+      btnAcortar.textContent = "Acortar";
+      btnAcortar.onclick = () => acortarCaja(id);
+      row.appendChild(btnAcortar);
+
+      cont.appendChild(row);
+      return cont;
     }
 
+    // === Copiar el contenido visible ===
     function copiar(id) {
       const text = document.getElementById(id).innerText;
-      navigator.clipboard.writeText(text).then(() => {
-        alert("Copiado ✅");
-      });
+      navigator.clipboard.writeText(text).then(() => alert("Copiado ✅"));
     }
 
+    // === Acortar la URL visible ===
     async function acortarCaja(id) {
       const caja = document.getElementById(id);
       const urlOriginal = caja.innerText;
@@ -112,6 +127,9 @@
         contenedor.querySelector(".row").appendChild(btn);
       }
     }
+
+    // === Inicializar evento principal ===
+    document.getElementById("btn-generar").addEventListener("click", generar);
   </script>
 </body>
 </html>
