@@ -312,6 +312,7 @@
             zipDescargable = nombreZip;
             botonDescargar.classList.remove('hidden');
             botonReintentar.classList.add('hidden');
+            if (intervaloProgreso) clearInterval(intervaloProgreso);
             bloquearUI(false);
             return;
           }
@@ -321,6 +322,7 @@
         } else {
           progreso.textContent += `\n⚠️ ZIP aún no disponible para descarga.`;
           botonReintentar.classList.remove('hidden');
+          if (intervaloProgreso) clearInterval(intervaloProgreso);
           bloquearUI(false);
         }
       } catch (_) {
@@ -329,6 +331,7 @@
         } else {
           progreso.textContent += `\n❌ Error al verificar disponibilidad del ZIP.`;
           botonReintentar.classList.remove('hidden');
+          if (intervaloProgreso) clearInterval(intervaloProgreso);
           bloquearUI(false);
         }
       }
