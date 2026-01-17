@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Transcriptor de entrevistas · Diario de Navarra. Buffer SSE</title>
+  <title>Transcriptor de entrevistas · Diario de Navarra. Parser2</title>
   <meta name="description" content="Interfaz clara para subir audios y descargar transcripciones en ZIP" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -255,43 +255,57 @@
           const decoder = new TextDecoder('utf-8');
           let sseBuffer = '';
 
+          const handleData = (data) => {
+            if (!data) return;
+
+            if (data.startsWith('DOWNLOAD_URL::')) {
+              const urlFirmada = data.split('::')[1];
+              if (intervaloProgreso) clearInterval(intervaloProgreso);
+              progreso.textContent += '\n✅ ZIP disponible. Descargando...';
+              const a = document.createElement('a');
+              a.href = urlFirmada;
+              a.download = 'transcripciones.zip';
+              a.rel = 'noopener';
+              a.click();
+              botonDescargar.classList.add('hidden');
+              botonReintentar.classList.add('hidden');
+              bloquearUI(false);
+              return;
+            }
+
+            if (data.startsWith('DOWNLOAD::')) {
+              const nombreZip = data.split('::')[1];
+              nombreZipPendiente = nombreZip;
+              if (intervaloProgreso) clearInterval(intervaloProgreso);
+              progreso.textContent += `\n🕒 Esperando 30 segundos antes de verificar la descarga...`;
+              setTimeout(() => { verificarZIP(nombreZip); }, 30000);
+              return;
+            }
+
+            progreso.textContent += data + '\n';
+          };
+
           const read = () => {
             reader.read().then(({ done, value }) => {
-              if (done) { if (intervaloProgreso) clearInterval(intervaloProgreso); bloquearUI(false); return; }
+              if (done) {
+                if (sseBuffer.trim().length > 0) {
+                  const lines = sseBuffer.split('\n').filter(line => line.startsWith('data:'));
+                  const data = lines.map(line => line.replace(/^data:\s*/, '')).join('\n').trim();
+                  handleData(data);
+                }
+                if (intervaloProgreso) clearInterval(intervaloProgreso);
+                bloquearUI(false);
+                return;
+              }
               sseBuffer += decoder.decode(value, { stream: true });
 
               const parts = sseBuffer.split('\n\n');
               sseBuffer = parts.pop() || '';
 
               parts.forEach(block => {
-                const match = block.match(/^data:\s*(.*)$/m);
-                if (match) {
-                  const data = match[1];
-
-                  if (data.startsWith('DOWNLOAD_URL::')) {
-                    const urlFirmada = data.split('::')[1];
-                    if (intervaloProgreso) clearInterval(intervaloProgreso);
-                    progreso.textContent += '\n✅ ZIP disponible. Descargando...';
-                    const a = document.createElement('a');
-                    a.href = urlFirmada;
-                    a.download = 'transcripciones.zip';
-                    a.rel = 'noopener';
-                    a.click();
-                    botonDescargar.classList.add('hidden');
-                    botonReintentar.classList.add('hidden');
-                    bloquearUI(false);
-                    return;
-                  }
-
-                  if (data.startsWith('DOWNLOAD::')) {
-                    const nombreZip = data.split('::')[1];
-                    nombreZipPendiente = nombreZip;
-                    progreso.textContent += `\n🕒 Esperando 30 segundos antes de verificar la descarga...`;
-                    setTimeout(() => { verificarZIP(nombreZip); }, 30000);
-                  } else {
-                    progreso.textContent += data + '\n';
-                  }
-                }
+                const lines = block.split('\n').filter(line => line.startsWith('data:'));
+                const data = lines.map(line => line.replace(/^data:\s*/, '')).join('\n').trim();
+                handleData(data);
               });
               read();
             });
