@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Transcriptor de entrevistas · Diario de Navarra</title>
+  <title>Transcriptor de entrevistas · Diario de Navarra. Buffer SSE</title>
   <meta name="description" content="Interfaz clara para subir audios y descargar transcripciones en ZIP" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -253,12 +253,17 @@
         .then(response => {
           const reader = response.body.getReader();
           const decoder = new TextDecoder('utf-8');
+          let sseBuffer = '';
 
           const read = () => {
             reader.read().then(({ done, value }) => {
               if (done) { if (intervaloProgreso) clearInterval(intervaloProgreso); bloquearUI(false); return; }
-              const chunk = decoder.decode(value, { stream: true });
-              chunk.split('\n\n').forEach(block => {
+              sseBuffer += decoder.decode(value, { stream: true });
+
+              const parts = sseBuffer.split('\n\n');
+              sseBuffer = parts.pop() || '';
+
+              parts.forEach(block => {
                 const match = block.match(/^data:\s*(.*)$/m);
                 if (match) {
                   const data = match[1];
