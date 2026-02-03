@@ -66,10 +66,13 @@
         const story = `${url}?utm_source=instagram&utm_medium=social&utm_campaign=${encodeURIComponent(section)}&utm_content=story`;
         const post  = `${url}?utm_source=later&utm_medium=linkinbio&utm_campaign=${encodeURIComponent(section)}&utm_content=post`;
         const whatsapp = `${url}?utm_source=Whatsapp&utm_medium=enlace&utm_campaign=${encodeURIComponent(section)}&utm_id=alerta_comunidad`;
-
+        const linkedin = `${url}?utm_source=linkedIn&utm_medium=enlace&utm_campaign=${encodeURIComponent(section)}&utm_id=post`;
+        
         result.appendChild(crearCaja(`story-${i}`, "Story de Instagram", story));
         result.appendChild(crearCaja(`post-${i}`, "Post de Instagram", post));
         result.appendChild(crearCaja(`whatsapp-${i}`, "WhatsApp", whatsapp));
+        result.appendChild(crearCaja(`linkedin-${i}`, "linkedIn", linkedin));
+
       });
     }
 
