@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Teletipos → Pegado compatible Xalok</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Mantiene look, y añade solo lo imprescindible */
+    .hidden { display: none !important; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border, #e5e7eb);
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    /* Zona “fantasma” para fallback de copia rica */
+    #richCopyZone {
+      position: fixed;
+      left: -9999px;
+      top: 0;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="brand">
+      Diario de Navarra · Utilidades
+      <span class="badge">Xalok</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="card stack" aria-labelledby="titulo">
+      <div class="stack" style="gap:6px">
+        <h1 id="titulo" class="title">📰 Teletipos → pegado compatible con Xalok</h1>
+        <p class="subtitle">
+          Pega el teletipo aquí. Se copian automáticamente los párrafos al portapapeles como contenido rico
+          (no como texto con etiquetas). Luego pega en Xalok.
+        </p>
+      </div>
+
+      <div class="stack">
+        <label for="input">Teletipo (pega aquí):</label>
+        <textarea id="input" class="result" style="min-height: 220px;" placeholder="Pega aquí el teletipo..."></textarea>
+      </div>
+
+      <div class="row">
+        <button id="retryCopy" type="button" class="hidden">📋 Copiar (reintentar)</button>
+        <button id="limpiar" type="button" class="btn-secondary">Limpiar</button>
+      </div>
+
+      <pre id="status" class="result">Esperando teletipo...</pre>
+
+      <!-- Salidas técnicas (ocultas por defecto) -->
+      <textarea id="plainOut" class="result hidden" style="min-height:120px;"></textarea>
+      <textarea id="htmlOut" class="result hidden" style="min-height:120px;"></textarea>
+
+      <!-- Fallback clásico: aquí montamos el HTML para copiarlo como “rico” con execCommand -->
+      <div id="richCopyZone" contenteditable="true" aria-hidden="true"></div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    const input = $("input");
+    const status = $("status");
+    const retryCopy = $("retryCopy");
+    const limpiar = $("limpiar");
+    const plainOut = $("plainOut");
+    const htmlOut = $("htmlOut");
+    const richCopyZone = $("richCopyZone");
+
+    function setStatus(msg, isWarn = false) {
+      status.textContent = msg;
+      status.style.borderColor = isWarn ? "#f59e0b" : "";
+    }
+
+    function normalize(text) {
+      text = (text || "");
+      text = text.replace(/\r\n?/g, "\n");          // CRLF/CR -> LF
+      text = text.replace(/\u2028|\u2029/g, "\n");  // separadores unicode
+      text = text.replace(/^\uFEFF/, "");           // BOM
+      text = text.replace(/\u00A0/g, " ");          // NBSP
+      return text;
+    }
+
+    // Si el editor de origen mete HTML en el portapapeles, lo convertimos a texto con saltos
+    function htmlClipboardToText(html) {
+      const tmp = document.createElement("div");
+      tmp.style.position = "fixed";
+      tmp.style.left = "-9999px";
+      tmp.style.top = "0";
+      tmp.style.whiteSpace = "pre-wrap";
+      tmp.innerHTML = html;
+
+      tmp.querySelectorAll("br").forEach(br => br.replaceWith("\n"));
+
+      // separa bloques típicos
+      const blockSel = "p,div,li,ul,ol,table,tr,blockquote,h1,h2,h3,h4,h5,h6";
+      tmp.querySelectorAll(blockSel).forEach(el => {
+        el.appendChild(document.createTextNode("\n\n"));
+      });
+
+      document.body.appendChild(tmp);
+      const text = tmp.innerText;
+      tmp.remove();
+      return normalize(text);
+    }
+
+    function escapeHtml(s) {
+      return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // Auto: si hay línea en blanco, separa por doble salto; si no, cada salto es párrafo
+    function splitParagraphsAuto(text) {
+      text = normalize(text).trim();
+      if (!text) return [];
+      const hasBlank = /\n[ \t]*\n+/.test(text);
+      const parts = hasBlank ? text.split(/\n[ \t]*\n+/) : text.split(/\n+/);
+      return parts.map(p => p.trim()).filter(Boolean);
+    }
+
+    // Genera HTML “rico” COMPATIBLE con un <p contenteditable>: usa <br><br> entre párrafos.
+    // Importante: NO ponemos <p>...</p> porque el CMS ahora lo está escapando como texto.
+    function toRichHtmlForXalok(text) {
+      const paras = splitParagraphsAuto(text);
+
+      // 1) Plain: doble salto para que, si pega como texto, al menos tenga párrafos.
+      const plain = paras.join("\n\n");
+
+      // 2) HTML: texto escapado + separador <br><br>
+      // (si en el futuro queréis negritas automáticas, se haría aquí)
+      const html = paras.map(p => escapeHtml(p)).join("<br><br>");
+
+      return { plain, html };
+    }
+
+    async function copyAsRich({ plain, html }) {
+      // Preferido: Clipboard API con text/html + text/plain
+      if (navigator.clipboard && window.ClipboardItem) {
+        const item = new ClipboardItem({
+          "text/plain": new Blob([plain], { type: "text/plain" }),
+          "text/html": new Blob([html], { type: "text/html" })
+        });
+        await navigator.clipboard.write([item]);
+        return true;
+      }
+      return false;
+    }
+
+    function copyAsRichFallbackExecCommand(html) {
+      // Fallback: selecciona un contenteditable con el HTML y copia “rico”
+      richCopyZone.innerHTML = html;
+
+      const range = document.createRange();
+      range.selectNodeContents(richCopyZone);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      const ok = document.execCommand("copy");
+      sel.removeAllRanges();
+      return ok;
+    }
+
+    async function transformAndCopy() {
+      const raw = input.value || "";
+      const { plain, html } = toRichHtmlForXalok(raw);
+
+      plainOut.value = plain;
+      htmlOut.value = html;
+
+      if (!plain.trim()) {
+        retryCopy.classList.add("hidden");
+        setStatus("Esperando teletipo...");
+        return;
+      }
+
+      try {
+        const okApi = await copyAsRich({ plain, html });
+        if (okApi) {
+          retryCopy.classList.add("hidden");
+          setStatus("✅ Copiado (formato rico). Pega en Xalok.");
+          return;
+        }
+
+        // Clipboard API no disponible: fallback execCommand
+        const okFallback = copyAsRichFallbackExecCommand(html);
+        if (okFallback) {
+          retryCopy.classList.add("hidden");
+          setStatus("✅ Copiado (fallback). Pega en Xalok.");
+          return;
+        }
+
+        throw new Error("No se pudo copiar con ningún método.");
+      } catch (e) {
+        retryCopy.classList.remove("hidden");
+        setStatus("⚠️ No se pudo copiar automáticamente. Pulsa “Copiar (reintentar)” y pega en Xalok.", true);
+      }
+    }
+
+    // Pegado: reconstruye párrafos si el plain viene “aplanado”, luego copia automático
+    input.addEventListener("paste", (e) => {
+      const cd = e.clipboardData;
+      if (!cd) return;
+
+      const plain = normalize(cd.getData("text/plain") || "");
+      const html = cd.getData("text/html") || "";
+      const plainHasBreaks = /[\n\r\u2028\u2029]/.test(plain);
+
+      if (!plainHasBreaks && html) {
+        e.preventDefault();
+        const reconstructed = htmlClipboardToText(html);
+
+        const start = input.selectionStart ?? input.value.length;
+        const end = input.selectionEnd ?? input.value.length;
+        input.value = input.value.slice(0, start) + reconstructed + input.value.slice(end);
+        const pos = start + reconstructed.length;
+        input.setSelectionRange(pos, pos);
+      }
+
+      // Copiar al siguiente tick para asegurar que el textarea ya tiene el contenido final
+      setTimeout(() => { transformAndCopy(); }, 0);
+    });
+
+    retryCopy.addEventListener("click", () => {
+      transformAndCopy();
+    });
+
+    limpiar.addEventListener("click", () => {
+      input.value = "";
+      plainOut.value = "";
+      htmlOut.value = "";
+      retryCopy.classList.add("hidden");
+      setStatus("Esperando teletipo...");
+      input.focus();
+    });
+  </script>
+</body>
+</html>
