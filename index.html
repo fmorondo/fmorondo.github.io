@@ -1,47 +1,60 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Experimentos IA Diario de Navarra</title>
-  <meta name="description" content="Portada de demos y utilidades de IA del Diario de Navarra" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <!-- CSS centralizado -->
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <header>
-    <div class="brand">
-      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
-      Diario de Navarra · Experimentos IA
-      <span class="badge">Inicio</span>
-    </div>
-  </header>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Compositor de Fotos</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="panel">
+        <h1>Compositor de Fotos</h1>
 
-  <main>
-    <section class="card">
-      <h1 class="title">Experimentos IA Diario de Navarra</h1>
-      <p class="subtitle">Elige una utilidad para abrirla en una nueva pestaña.</p>
-      <a class="button" href="https://fmorondo.github.io/transcripciones.html" target="_blank" rel="noopener">Transcripciones entrevistas</a>
-      <a class="button" href="koldo.html" target="_blank" rel="noopener">Buscador de noticias ‘Caso Koldo’</a>
-      <a class="button" href="osasuna-prensa.html" target="_blank" rel="noopener">Buscador de Osasuna para periodistas</a>
-      <a class="button" href="osasuna.html" target="_blank" rel="noopener">Buscador rojillo</a>
-      <a class="button" href="buscadorprotocolo.html" target="_blank" rel="noopener">Asesor de cumplimiento normativo</a>
-      <h1 class="title">Servicios no IA</h1>
-      <p class="subtitle">Elige una utilidad para abrirla en una nueva pestaña.</p>
-      <a class="button" href="https://fmorondo.github.io/utm.html" target="_blank" rel="noopener">Generación de UTM</a>
-      <a class="button" href="https://fmorondo.github.io/comillas.html" target="_blank" rel="noopener">Cambio de comillas angulares a altas</a>
-       <a class="button" href="https://fmorondo.github.io/teletipoxalok.html" target="_blank" rel="noopener">Teletipos de Search a Xalok</a>
-      <a class="button" href="pdf-to-jpg/index.html" target="_blank" rel="noopener">PDF a JPG</a>
-      <a class="button" href="pdf-merger/index.html" target="_blank" rel="noopener">Unir PDF</a>
-      <a class="button" href="descargar-audio.html" target="_blank" rel="noopener">Descargar audio</a>
-    </section>
-  </main>
+        <div class="control-group">
+          <label for="photoInput">Agregar fotos (3 a 12)</label>
+          <input id="photoInput" type="file" accept="image/*" multiple />
+          <small class="helper">Puedes agregar imágenes en varias tandas, hasta 12 en total.</small>
+        </div>
 
-  <footer>
-    <p class="footer">v1 · prototipo interno</p>
-  </footer>
-</body>
+        <div class="control-group">
+          <label for="folderInput">Agregar carpeta de fotos (opcional)</label>
+          <input id="folderInput" type="file" accept="image/*" webkitdirectory directory multiple />
+          <small class="helper">También puedes arrastrar carpetas o imágenes al área punteada.</small>
+        </div>
+
+        <div id="dropZone" class="drop-zone">
+          Arrastra aquí imágenes o carpetas
+        </div>
+
+        <div class="control-group">
+          <label>Fondo por color</label>
+          <div id="colorPalette" class="palette"></div>
+        </div>
+
+        <div class="control-group">
+          <label for="bgInput">Fondo con imagen (opcional)</label>
+          <input id="bgInput" type="file" accept="image/*" />
+          <small class="helper">La imagen de fondo se ajusta al lienzo y se desenfoca.</small>
+        </div>
+
+        <div class="control-group">
+          <label for="zoomControl">Zoom de la foto seleccionada</label>
+          <input id="zoomControl" type="range" min="100" max="220" step="1" value="100" disabled />
+          <small id="selectedInfo" class="helper">Selecciona una foto en la vista previa para ajustar su zoom.</small>
+        </div>
+
+        <button id="downloadBtn" type="button" disabled>Descargar PNG</button>
+        <button id="clearBtn" class="btn-secondary" type="button">Limpiar fotos</button>
+        <p id="status" class="status" aria-live="polite"></p>
+      </section>
+
+      <section class="preview-section">
+        <h2>Vista previa (1365 × 794)</h2>
+        <canvas id="previewCanvas" width="1365" height="794"></canvas>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
 </html>
