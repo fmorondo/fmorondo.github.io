@@ -29,6 +29,7 @@ const dropZone = document.getElementById("dropZone");
 const colorPalette = document.getElementById("colorPalette");
 const zoomControl = document.getElementById("zoomControl");
 const selectedInfo = document.getElementById("selectedInfo");
+const reorderMode = document.getElementById("reorderMode");
 const downloadBtn = document.getElementById("downloadBtn");
 const clearBtn = document.getElementById("clearBtn");
 const statusEl = document.getElementById("status");
@@ -77,6 +78,12 @@ function bindEvents() {
     const photo = state.photos[state.selectedIndex];
     photo.scale = Number(zoomControl.value) / 100;
     clampPhotoOffset(state.selectedIndex);
+    render();
+  });
+  reorderMode.addEventListener("change", () => {
+    state.dragging = null;
+    canvas.classList.remove("is-dragging");
+    updateControls();
     render();
   });
 
@@ -312,7 +319,17 @@ function drawFramesAndPhotos() {
     ctx.restore();
 
     const isSelected = index === state.selectedIndex;
-    ctx.strokeStyle = isSelected ? "#315b7c" : "rgba(30,30,30,0.18)";
+    const reorderDragging = state.dragging && state.dragging.type === "reorder";
+    const isSource = reorderDragging && index === state.dragging.index;
+    const isTarget = reorderDragging && index === state.dragging.dropTarget && index !== state.dragging.index;
+
+    ctx.strokeStyle = isTarget
+      ? "#16a34a"
+      : isSource
+        ? "#1d4ed8"
+        : isSelected
+          ? "#315b7c"
+          : "rgba(30,30,30,0.18)";
     ctx.lineWidth = isSelected ? 3 : 1;
     ctx.strokeRect(frame.x + 0.5, frame.y + 0.5, frame.width - 1, frame.height - 1);
   });
@@ -362,7 +379,17 @@ function onPointerDown(event) {
   }
 
   state.selectedIndex = index;
-  state.dragging = { index, startX: x, startY: y };
+  if (reorderMode.checked) {
+    state.dragging = {
+      type: "reorder",
+      index,
+      startX: x,
+      startY: y,
+      dropTarget: index,
+    };
+  } else {
+    state.dragging = { type: "pan", index, startX: x, startY: y };
+  }
   canvas.classList.add("is-draggable", "is-dragging");
   updateControls();
   render();
@@ -377,24 +404,39 @@ function onPointerMove(event) {
   }
 
   const { x, y } = getCanvasPoint(event);
-  const photo = state.photos[state.dragging.index];
-  if (!photo) return;
+  if (state.dragging.type === "reorder") {
+    state.dragging.dropTarget = findFrameAtPoint(x, y);
+  } else {
+    const photo = state.photos[state.dragging.index];
+    if (!photo) return;
 
-  const dx = x - state.dragging.startX;
-  const dy = y - state.dragging.startY;
-  photo.offsetX += dx;
-  photo.offsetY += dy;
+    const dx = x - state.dragging.startX;
+    const dy = y - state.dragging.startY;
+    photo.offsetX += dx;
+    photo.offsetY += dy;
 
-  state.dragging.startX = x;
-  state.dragging.startY = y;
+    state.dragging.startX = x;
+    state.dragging.startY = y;
 
-  clampPhotoOffset(state.dragging.index);
+    clampPhotoOffset(state.dragging.index);
+  }
   render();
 }
 
 function onPointerUp() {
+  if (state.dragging && state.dragging.type === "reorder") {
+    const from = state.dragging.index;
+    const to = state.dragging.dropTarget;
+    if (to >= 0 && to < state.photos.length && to !== from) {
+      swapPhotos(from, to);
+      state.selectedIndex = to;
+      setStatus(`Foto ${from + 1} intercambiada con foto ${to + 1}.`);
+    }
+  }
+
   state.dragging = null;
   canvas.classList.remove("is-dragging");
+  render();
 }
 
 function onWheelZoom(event) {
@@ -454,7 +496,9 @@ function updateControls() {
 
   const photo = state.photos[state.selectedIndex];
   zoomControl.value = String(Math.round(photo.scale * 100));
-  selectedInfo.textContent = `Foto ${state.selectedIndex + 1} seleccionada. Arrastra para reencuadrar.`;
+  selectedInfo.textContent = reorderMode.checked
+    ? `Foto ${state.selectedIndex + 1} seleccionada. Arrastra y suelta sobre otra para reordenar.`
+    : `Foto ${state.selectedIndex + 1} seleccionada. Arrastra para reencuadrar.`;
 }
 
 function readImageFile(file) {
@@ -515,6 +559,12 @@ function clearAllPhotos() {
   folderInput.value = "";
   setStatus("Se limpiaron todas las fotos.");
   render();
+}
+
+function swapPhotos(indexA, indexB) {
+  const temp = state.photos[indexA];
+  state.photos[indexA] = state.photos[indexB];
+  state.photos[indexB] = temp;
 }
 
 async function extractDroppedImageFiles(dataTransfer) {
