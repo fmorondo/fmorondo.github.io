@@ -81,9 +81,16 @@ function bindEvents() {
   });
 
   downloadBtn.addEventListener("click", () => {
+    const suggestedName = "composicion-1365x794";
+    const userName = window.prompt("Nombre del archivo (sin extensión):", suggestedName);
+    if (userName === null) return;
+
+    const cleanName = userName.trim().replace(/[\\/:*?"<>|]+/g, "_");
+    const finalName = cleanName || suggestedName;
+
     const link = document.createElement("a");
-    link.href = canvas.toDataURL("image/png");
-    link.download = "composicion-1365x794.png";
+    link.href = canvas.toDataURL("image/jpeg", 0.92);
+    link.download = `${finalName}.jpg`;
     link.click();
   });
   clearBtn.addEventListener("click", clearAllPhotos);
