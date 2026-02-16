@@ -98,7 +98,7 @@
     const botonReintentar = document.getElementById('reintentar');
     const selIdioma = document.getElementById('idioma');
     const selPrompt = document.getElementById('prompt');
-    const checkContexto = document.getElementById('contexto_navarra'); 
+    const checkContexto = document.getElementById('contexto_navarra');
 
     let zipDescargable = null;      // nombre del ZIP para fallback local
     let nombreZipPendiente = null;  // idem
@@ -202,7 +202,9 @@
             const enlace = document.createElement('a');
             enlace.href = url;
             enlace.download = zipDescargable;
+            document.body.appendChild(enlace); // FIX: Append to body
             enlace.click();
+            document.body.removeChild(enlace); // FIX: Cleanup
           } else {
             if (intentos < 4) {
               progreso.textContent += `\n⏳ ZIP aún no listo para descargar (intento ${intentos + 1}). Reintentando...`;
@@ -237,7 +239,7 @@
                   `?gcs_uri=${encodeURIComponent(gs_uri)}` +
                   `&source_lang=${encodeURIComponent(selIdioma.value)}` +
                   `&prompt_id=${encodeURIComponent(selPrompt.value)}`;
-      
+
       // Añadir parámetro de contexto si está marcado
       if (checkContexto.checked) {
         url += '&usar_contexto_navarra=true';
@@ -259,14 +261,29 @@
             if (!data) return;
 
             if (data.startsWith('DOWNLOAD_URL::')) {
-              const urlFirmada = data.split('::')[1];
+              // FIX: Robust split logic
+              const urlFirmada = data.slice(data.indexOf('::') + 2).trim();
+
               if (intervaloProgreso) clearInterval(intervaloProgreso);
               progreso.textContent += '\n✅ ZIP disponible. Descargando...';
+
               const a = document.createElement('a');
               a.href = urlFirmada;
               a.download = 'transcripciones.zip';
               a.rel = 'noopener';
+              a.target = '_blank'; // FIX: Add target blank for safety
+              a.style.display = 'none'; // FIX: Hide it
+
+              document.body.appendChild(a); // FIX: Append to body to ensure click works
               a.click();
+              document.body.removeChild(a); // FIX: Clean up
+
+              // FIX: Provide visual fallback
+              const fallbackMsg = document.createElement('div');
+              fallbackMsg.style.marginTop = '10px';
+              fallbackMsg.innerHTML = `<strong>¿No comenzó la descarga?</strong> <a href="${urlFirmada}" target="_blank">Haz clic aquí para descargar manualmente</a>`;
+              progreso.appendChild(fallbackMsg);
+
               botonDescargar.classList.add('hidden');
               botonReintentar.classList.add('hidden');
               bloquearUI(false);
