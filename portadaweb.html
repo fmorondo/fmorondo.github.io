@@ -16,78 +16,27 @@
   </script>
 
   <style>
-    .container {
-      max-width: 1100px;
-      margin: 40px auto;
-      display: grid;
-      gap: 24px;
-    }
+    /* Ajustes mínimos (por encima de styles.css) */
+    .container { max-width: 1100px; margin: 40px auto; display: grid; gap: 24px; padding: 0 16px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
 
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 32px;
-    }
-
-    @media (max-width: 900px) {
-      .grid { grid-template-columns: 1fr; }
-    }
-
-    canvas {
-      width: 100%;
-      max-width: 474px;
-      border-radius: 12px;
-      border: 1px solid #ddd;
-      background: #fff;
-    }
-
-    .panel {
-      display: grid;
-      gap: 16px;
-    }
-
-    .control {
-      display: grid;
-      gap: 6px;
-    }
-
-    input[type="range"] {
-      width: 100%;
-    }
-
-    button {
-      padding: 10px 14px;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
-      font-weight: 600;
-    }
-
-    .primary {
-      background: #111;
-      color: #fff;
-    }
-
-    .secondary {
-      background: #eee;
-    }
-
-    .muted {
-      font-size: 13px;
-      opacity: .7;
-    }
+    .panel { display: grid; gap: 16px; }
+    .control { display: grid; gap: 6px; }
+    .muted { font-size: 13px; opacity: .7; }
+    canvas { width: 100%; max-width: 474px; border-radius: 12px; border: 1px solid #ddd; background: #fff; }
+    button { padding: 10px 14px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; }
+    .primary { background: #111; color: #fff; }
+    .secondary { background: #eee; }
   </style>
 </head>
+
 <body>
-
 <div class="container">
-
   <h1>Generador 474×250</h1>
 
   <div class="grid">
-
     <div class="panel">
-
       <div class="control">
         <label>Archivo (PDF / JPG / PNG)</label>
         <input type="file" id="fileInput" accept=".pdf,image/*">
@@ -95,8 +44,8 @@
 
       <div class="control">
         <label>Alto franja superior (%)</label>
-        <input type="range" id="cropPct" min="10" max="60" value="30">
-        <div class="muted">Valor: <span id="cropVal">30</span>%</div>
+        <input type="range" id="cropPct" min="20" max="60" value="38">
+        <div class="muted">Valor: <span id="cropVal">38</span>%</div>
       </div>
 
       <div class="control">
@@ -111,17 +60,23 @@
         <div class="muted">Valor: <span id="marginVal">10</span> px</div>
       </div>
 
-      <div style="display:flex;gap:12px;">
-        <button class="primary" id="downloadBtn" disabled>Descargar JPG</button>
-        <button class="secondary" id="resetBtn">Reset</button>
+      <div class="control">
+        <label>Calidad JPG</label>
+        <input type="range" id="jpgQuality" min="70" max="100" value="92">
+        <div class="muted">Valor: <span id="jpgVal">0.92</span></div>
       </div>
 
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <button class="primary" id="downloadBtn" disabled>Descargar JPG</button>
+        <button class="secondary" id="resetBtn" type="button">Reset</button>
+      </div>
+
+      <div class="muted" id="status">Sube un archivo para empezar.</div>
     </div>
 
     <div>
       <canvas id="outCanvas" width="474" height="250"></canvas>
     </div>
-
   </div>
 </div>
 
@@ -136,101 +91,158 @@ const fileInput = document.getElementById("fileInput");
 const cropPct = document.getElementById("cropPct");
 const bgAlpha = document.getElementById("bgAlpha");
 const marginPx = document.getElementById("marginPx");
+const jpgQuality = document.getElementById("jpgQuality");
 
 const cropVal = document.getElementById("cropVal");
 const alphaVal = document.getElementById("alphaVal");
 const marginVal = document.getElementById("marginVal");
+const jpgVal = document.getElementById("jpgVal");
 
 const downloadBtn = document.getElementById("downloadBtn");
 const resetBtn = document.getElementById("resetBtn");
+const statusEl = document.getElementById("status");
 
 let sourceCanvas = null;
+
+function setSmoothing(c) {
+  const cctx = c.getContext("2d");
+  cctx.imageSmoothingEnabled = true;
+  cctx.imageSmoothingQuality = "high";
+}
+
+setSmoothing(canvas);
 
 cropPct.oninput = () => { cropVal.textContent = cropPct.value; if(sourceCanvas) render(); };
 bgAlpha.oninput = () => { alphaVal.textContent = (bgAlpha.value/100).toFixed(2); if(sourceCanvas) render(); };
 marginPx.oninput = () => { marginVal.textContent = marginPx.value; if(sourceCanvas) render(); };
+jpgQuality.oninput = () => { jpgVal.textContent = (jpgQuality.value/100).toFixed(2); };
 
 fileInput.addEventListener("change", async e => {
-  const file = e.target.files[0];
+  const file = e.target.files?.[0];
   if (!file) return;
 
-  if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
-    sourceCanvas = await rasterizePDF(file);
-  } else {
-    sourceCanvas = await rasterizeImage(file);
-  }
+  try {
+    statusEl.textContent = "Procesando…";
+    downloadBtn.disabled = true;
 
-  render();
-  downloadBtn.disabled = false;
+    if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+      if (!window.pdfjsLib) throw new Error("PDF.js no está cargado. Revisa /lib/pdf.min.js");
+      sourceCanvas = await rasterizePDF(file);
+    } else {
+      sourceCanvas = await rasterizeImage(file);
+    }
+
+    render();
+    downloadBtn.disabled = false;
+    statusEl.textContent = "Listo.";
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = "Error: " + (err?.message || String(err));
+    sourceCanvas = null;
+    downloadBtn.disabled = true;
+    ctx.clearRect(0, 0, OUT_W, OUT_H);
+  }
 });
 
 async function rasterizeImage(file){
-  return new Promise(resolve=>{
+  const img = await fileToImage(file);
+  const c = document.createElement("canvas");
+  c.width = img.naturalWidth || img.width;
+  c.height = img.naturalHeight || img.height;
+  setSmoothing(c);
+  c.getContext("2d").drawImage(img, 0, 0);
+  return c;
+}
+
+function fileToImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = ()=>{
-      const c = document.createElement("canvas");
-      c.width = img.width;
-      c.height = img.height;
-      c.getContext("2d").drawImage(img,0,0);
-      resolve(c);
-    };
-    img.src = URL.createObjectURL(file);
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("No se pudo leer la imagen.")); };
+    img.src = url;
   });
 }
 
 async function rasterizePDF(file){
   const buffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({data:buffer}).promise;
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
   const page = await pdf.getPage(1);
-  const viewport = page.getViewport({scale:2});
+
+  // Más calidad: escala alta, pero limitamos tamaño final para no romper memoria
+  const SCALE = 4.0;
+  let viewport = page.getViewport({ scale: SCALE });
+
+  const MAX_DIM = 6000; // seguridad
+  if (Math.max(viewport.width, viewport.height) > MAX_DIM) {
+    const shrink = MAX_DIM / Math.max(viewport.width, viewport.height);
+    viewport = page.getViewport({ scale: SCALE * shrink });
+  }
+
   const c = document.createElement("canvas");
-  c.width = viewport.width;
-  c.height = viewport.height;
-  await page.render({canvasContext:c.getContext("2d"),viewport}).promise;
+  c.width = Math.floor(viewport.width);
+  c.height = Math.floor(viewport.height);
+  setSmoothing(c);
+
+  await page.render({ canvasContext: c.getContext("2d"), viewport }).promise;
   return c;
 }
 
 function render(){
-  ctx.clearRect(0,0,OUT_W,OUT_H);
+  const src = sourceCanvas;
+  if (!src) return;
 
-  const cropPercent = cropPct.value/100;
-  const alpha = bgAlpha.value/100;
-  const margin = parseInt(marginPx.value);
+  const cropPercent = Number(cropPct.value) / 100;
+  const alpha = Number(bgAlpha.value) / 100;
+  const margin = parseInt(marginPx.value, 10);
 
-  // BACKGROUND (cover al ancho completo)
-  const stripH = sourceCanvas.height * cropPercent;
-  const scaleBg = Math.max(OUT_W/sourceCanvas.width, OUT_H/stripH);
+  // IMPORTANTÍSIMO para JPG: fondo blanco (evita “negro” al aplanar transparencia)
+  ctx.save();
+  ctx.globalAlpha = 1.0;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, OUT_W, OUT_H);
+  ctx.restore();
 
-  const bgW = sourceCanvas.width * scaleBg;
+  // BACKGROUND: franja superior (desde y=0), escalada "cover" a 474x250
+  const stripH = Math.max(1, Math.floor(src.height * cropPercent));
+  const scaleBg = Math.max(OUT_W / src.width, OUT_H / stripH);
+
+  const bgW = src.width * scaleBg;
   const bgH = stripH * scaleBg;
+
+  // Anclar arriba (no centrar vertical): mantiene “mancheta + titulares”
+  const bgX = (OUT_W - bgW) / 2;
+  const bgY = 0;
 
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.drawImage(
-    sourceCanvas,
-    0,0,sourceCanvas.width,stripH,
-    (OUT_W-bgW)/2,
-    (OUT_H-bgH)/2,
-    bgW,bgH
+    src,
+    0, 0, src.width, stripH,
+    bgX, bgY, bgW, bgH
   );
   ctx.restore();
 
-  // FOREGROUND (encaja por ALTO completo)
-  const availableH = OUT_H - margin*2;
-  const scaleFg = availableH / sourceCanvas.height;
+  // FOREGROUND: encajar por ALTO completo (sin recorte), con margen
+  const availableH = Math.max(1, OUT_H - margin * 2);
+  const scaleFg = availableH / src.height;
 
-  const fgW = sourceCanvas.width * scaleFg;
-  const fgH = sourceCanvas.height * scaleFg;
+  const fgW = src.width * scaleFg;
+  const fgH = src.height * scaleFg;
 
-  const fgX = (OUT_W - fgW)/2;
+  const fgX = (OUT_W - fgW) / 2;
   const fgY = margin;
 
-  ctx.drawImage(sourceCanvas, fgX, fgY, fgW, fgH);
+  ctx.save();
+  ctx.globalAlpha = 1.0;
+  ctx.drawImage(src, fgX, fgY, fgW, fgH);
+  ctx.restore();
 }
 
 downloadBtn.addEventListener("click",()=>{
+  const q = Number(jpgQuality.value) / 100;
   const link = document.createElement("a");
-  link.href = canvas.toDataURL("image/jpeg",0.92);
+  link.href = canvas.toDataURL("image/jpeg", q);
   link.download = "portada_474x250.jpg";
   link.click();
 });
@@ -238,10 +250,10 @@ downloadBtn.addEventListener("click",()=>{
 resetBtn.onclick = ()=>{
   sourceCanvas = null;
   ctx.clearRect(0,0,OUT_W,OUT_H);
-  fileInput.value="";
+  fileInput.value = "";
   downloadBtn.disabled = true;
+  statusEl.textContent = "Sube un archivo para empezar.";
 };
 </script>
-
 </body>
 </html>
