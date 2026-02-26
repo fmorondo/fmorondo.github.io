@@ -3,305 +3,245 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Portada DN → 474x250</title>
-  <style>
-    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-    body { margin: 24px; color: #111; }
-    .wrap { display: grid; gap: 16px; max-width: 980px; }
-    .panel { display: grid; gap: 12px; padding: 14px; border: 1px solid #ddd; border-radius: 12px; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 820px) { .row { grid-template-columns: 1fr; } }
-    label { display: grid; gap: 6px; font-size: 14px; }
-    input[type="range"] { width: 100%; }
-    .controls { display: grid; gap: 10px; }
-    .btns { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    button {
-      padding: 10px 12px; border: 1px solid #111; background: #111; color: #fff;
-      border-radius: 10px; cursor: pointer; font-weight: 600;
-    }
-    button:disabled { opacity: .5; cursor: not-allowed; }
-    .hint { font-size: 13px; color: #444; line-height: 1.35; }
-    .preview {
-      display: grid; gap: 10px; align-items: start;
-      padding: 14px; border: 1px dashed #bbb; border-radius: 12px;
-      background: #fafafa;
-    }
-    canvas { image-rendering: auto; border-radius: 10px; background: #fff; border: 1px solid #eee; }
-    .small { font-size: 12px; color: #666; }
-    .value { font-variant-numeric: tabular-nums; }
-  </style>
+  <title>Generador portada 474x250</title>
 
- <!-- PDF.js -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script>
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-</script>
-</head>
+  <link rel="stylesheet" href="./styles.css">
 
-<body>
-  <div class="wrap">
-    <h1 style="margin:0;">Generador 474×250 (fondo superior 10% + portada centrada)</h1>
-    <div class="hint">
-      Sube una portada en <b>PDF</b> o <b>JPG/PNG</b>. El sistema usa la franja superior como fondo con opacidad ajustable
-      y superpone la portada completa centrada a opacidad 100%. Exporta JPG de <b>474×250</b>.
-    </div>
-
-    <div class="row">
-      <div class="panel">
-        <label>
-          Archivo (PDF/JPG/PNG)
-          <input id="fileInput" type="file" accept=".pdf,image/jpeg,image/jpg,image/png" />
-        </label>
-
-        <div class="controls">
-          <label>
-            Alto del recorte superior (porcentaje del alto)
-            <input id="cropPct" type="range" min="5" max="60" value="25" />
-            <div class="small">Valor: <span class="value" id="cropPctVal">25</span>%</div>
-          </label>
-
-          <label>
-            Opacidad del fondo
-            <input id="bgAlpha" type="range" min="0" max="30" value="10" />
-            <div class="small">Valor: <span class="value" id="bgAlphaVal">0.10</span></div>
-          </label>
-
-          <label>
-            Margen (px)
-            <input id="marginPx" type="range" min="0" max="40" value="10" />
-            <div class="small">Valor: <span class="value" id="marginPxVal">10</span> px</div>
-          </label>
-
-          <label>
-            Escala extra de portada
-            <input id="coverScale" type="range" min="70" max="120" value="100" />
-            <div class="small">Valor: <span class="value" id="coverScaleVal">1.00</span></div>
-          </label>
-
-          <label>
-            Calidad JPG
-            <input id="jpgQuality" type="range" min="60" max="100" value="92" />
-            <div class="small">Valor: <span class="value" id="jpgQualityVal">0.92</span></div>
-          </label>
-        </div>
-
-        <div class="btns">
-          <button id="downloadBtn" disabled>Descargar JPG 474×250</button>
-          <button id="resetBtn" type="button">Reset</button>
-        </div>
-
-        <div class="small">
-          Tip: si el “strip” superior queda corto/largo, ajusta el porcentaje. Si la portada central queda muy grande, baja “Escala extra”.
-        </div>
-      </div>
-
-      <div class="preview">
-        <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;">
-          <div><b>Vista previa</b></div>
-          <div class="small">Salida fija: 474×250</div>
-        </div>
-        <canvas id="outCanvas" width="474" height="250"></canvas>
-        <div class="small" id="status">Sube un archivo para empezar.</div>
-      </div>
-    </div>
-  </div>
-
+  <!-- PDF.js local -->
+  <script src="./lib/pdf.min.js"></script>
   <script>
-    // --- Constants
-    const OUT_W = 474;
-    const OUT_H = 250;
-
-    // --- DOM
-    const fileInput = document.getElementById('fileInput');
-    const outCanvas = document.getElementById('outCanvas');
-    const ctx = outCanvas.getContext('2d');
-
-    const cropPct = document.getElementById('cropPct');
-    const bgAlpha = document.getElementById('bgAlpha');
-    const marginPx = document.getElementById('marginPx');
-    const coverScale = document.getElementById('coverScale');
-    const jpgQuality = document.getElementById('jpgQuality');
-
-    const cropPctVal = document.getElementById('cropPctVal');
-    const bgAlphaVal = document.getElementById('bgAlphaVal');
-    const marginPxVal = document.getElementById('marginPxVal');
-    const coverScaleVal = document.getElementById('coverScaleVal');
-    const jpgQualityVal = document.getElementById('jpgQualityVal');
-
-    const downloadBtn = document.getElementById('downloadBtn');
-    const resetBtn = document.getElementById('resetBtn');
-    const statusEl = document.getElementById('status');
-
-    // --- State: source image as HTMLCanvasElement (normalized raster)
-    let sourceCanvas = null; // canvas containing the full cover raster
-
-    // --- PDF.js worker config (CDN)
     if (window.pdfjsLib) {
-      // Use a compatible worker from the same CDN version:
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js";
-    }
-
-    // --- UI binding
-    const updateLabels = () => {
-      cropPctVal.textContent = String(cropPct.value);
-      bgAlphaVal.textContent = (Number(bgAlpha.value) / 100).toFixed(2);
-      marginPxVal.textContent = String(marginPx.value);
-      coverScaleVal.textContent = (Number(coverScale.value) / 100).toFixed(2);
-      jpgQualityVal.textContent = (Number(jpgQuality.value) / 100).toFixed(2);
-    };
-
-    [cropPct, bgAlpha, marginPx, coverScale, jpgQuality].forEach(el => {
-      el.addEventListener('input', () => {
-        updateLabels();
-        if (sourceCanvas) renderComposite();
-      });
-    });
-
-    updateLabels();
-
-    resetBtn.addEventListener('click', () => {
-      fileInput.value = "";
-      sourceCanvas = null;
-      downloadBtn.disabled = true;
-      statusEl.textContent = "Sube un archivo para empezar.";
-      ctx.clearRect(0, 0, OUT_W, OUT_H);
-    });
-
-    downloadBtn.addEventListener('click', () => {
-      if (!sourceCanvas) return;
-      const q = Number(jpgQuality.value) / 100;
-      const dataUrl = outCanvas.toDataURL('image/jpeg', q);
-
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = 'portada_474x250.jpg';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    });
-
-    fileInput.addEventListener('change', async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      try {
-        statusEl.textContent = "Procesando…";
-        downloadBtn.disabled = true;
-
-        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-          sourceCanvas = await rasterizePdfFirstPage(file);
-        } else if (file.type.startsWith('image/')) {
-          sourceCanvas = await rasterizeImage(file);
-        } else {
-          throw new Error("Formato no soportado. Usa PDF o JPG/PNG.");
-        }
-
-        renderComposite();
-        downloadBtn.disabled = false;
-        statusEl.textContent = "Listo. Ajusta controles si hace falta y descarga.";
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent = "Error: " + (err?.message || String(err));
-        sourceCanvas = null;
-        downloadBtn.disabled = true;
-        ctx.clearRect(0, 0, OUT_W, OUT_H);
-      }
-    });
-
-    // --- Helpers: rasterize image file to canvas
-    async function rasterizeImage(file) {
-      const img = await fileToImage(file);
-      // Normalize into a canvas (keeps original resolution)
-      const c = document.createElement('canvas');
-      c.width = img.naturalWidth || img.width;
-      c.height = img.naturalHeight || img.height;
-      const cctx = c.getContext('2d');
-      cctx.drawImage(img, 0, 0);
-      return c;
-    }
-
-    function fileToImage(file) {
-      return new Promise((resolve, reject) => {
-        const url = URL.createObjectURL(file);
-        const img = new Image();
-        img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("No se pudo leer la imagen.")); };
-        img.src = url;
-      });
-    }
-
-    // --- Helpers: rasterize PDF first page to canvas
-    async function rasterizePdfFirstPage(file) {
-      if (!window.pdfjsLib) throw new Error("PDF.js no está disponible (falló la carga del CDN).");
-
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const page = await pdf.getPage(1);
-
-      // Render at a decent scale to preserve quality; adjust if needed.
-      const viewport = page.getViewport({ scale: 2.0 });
-
-      const c = document.createElement('canvas');
-      c.width = Math.floor(viewport.width);
-      c.height = Math.floor(viewport.height);
-
-      const cctx = c.getContext('2d', { alpha: false });
-      await page.render({ canvasContext: cctx, viewport }).promise;
-
-      return c;
-    }
-
-    // --- Core: render composite into OUT canvas
-    function renderComposite() {
-      const src = sourceCanvas;
-      if (!src) return;
-
-      const cropPercent = Number(cropPct.value) / 100;
-      const alphaBg = Number(bgAlpha.value) / 100;
-      const margin = Number(marginPx.value);
-      const extraScale = Number(coverScale.value) / 100;
-
-      // Clear
-      ctx.clearRect(0, 0, OUT_W, OUT_H);
-
-      // 1) Background: top strip, scaled to cover full output
-      const stripH = Math.max(1, Math.floor(src.height * cropPercent));
-      const strip = { x: 0, y: 0, w: src.width, h: stripH };
-
-      // Compute "cover" draw rect: scale strip to cover OUT_W x OUT_H
-      const bgScale = Math.max(OUT_W / strip.w, OUT_H / strip.h);
-      const bgDrawW = strip.w * bgScale;
-      const bgDrawH = strip.h * bgScale;
-      const bgDx = (OUT_W - bgDrawW) / 2;
-      const bgDy = (OUT_H - bgDrawH) / 2;
-
-      ctx.save();
-      ctx.globalAlpha = alphaBg;
-      ctx.drawImage(
-        src,
-        strip.x, strip.y, strip.w, strip.h,
-        bgDx, bgDy, bgDrawW, bgDrawH
-      );
-      ctx.restore();
-
-      // 2) Foreground: full cover centered, fit inside with margin, plus extraScale
-      const maxW = Math.max(1, OUT_W - margin * 2);
-      const maxH = Math.max(1, OUT_H - margin * 2);
-
-      const fitScale = Math.min(maxW / src.width, maxH / src.height) * extraScale;
-      const fgW = src.width * fitScale;
-      const fgH = src.height * fitScale;
-
-      const fgX = (OUT_W - fgW) / 2;
-      const fgY = (OUT_H - fgH) / 2;
-
-      ctx.save();
-      ctx.globalAlpha = 1.0;
-      ctx.drawImage(src, 0, 0, src.width, src.height, fgX, fgY, fgW, fgH);
-      ctx.restore();
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "./lib/pdf.worker.min.js";
     }
   </script>
+
+  <style>
+    .container {
+      max-width: 1100px;
+      margin: 40px auto;
+      display: grid;
+      gap: 24px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    canvas {
+      width: 100%;
+      max-width: 474px;
+      border-radius: 12px;
+      border: 1px solid #ddd;
+      background: #fff;
+    }
+
+    .panel {
+      display: grid;
+      gap: 16px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+    }
+
+    button {
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .primary {
+      background: #111;
+      color: #fff;
+    }
+
+    .secondary {
+      background: #eee;
+    }
+
+    .muted {
+      font-size: 13px;
+      opacity: .7;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <h1>Generador 474×250</h1>
+
+  <div class="grid">
+
+    <div class="panel">
+
+      <div class="control">
+        <label>Archivo (PDF / JPG / PNG)</label>
+        <input type="file" id="fileInput" accept=".pdf,image/*">
+      </div>
+
+      <div class="control">
+        <label>Alto franja superior (%)</label>
+        <input type="range" id="cropPct" min="10" max="60" value="30">
+        <div class="muted">Valor: <span id="cropVal">30</span>%</div>
+      </div>
+
+      <div class="control">
+        <label>Opacidad fondo</label>
+        <input type="range" id="bgAlpha" min="0" max="30" value="10">
+        <div class="muted">Valor: <span id="alphaVal">0.10</span></div>
+      </div>
+
+      <div class="control">
+        <label>Margen (px)</label>
+        <input type="range" id="marginPx" min="0" max="40" value="10">
+        <div class="muted">Valor: <span id="marginVal">10</span> px</div>
+      </div>
+
+      <div style="display:flex;gap:12px;">
+        <button class="primary" id="downloadBtn" disabled>Descargar JPG</button>
+        <button class="secondary" id="resetBtn">Reset</button>
+      </div>
+
+    </div>
+
+    <div>
+      <canvas id="outCanvas" width="474" height="250"></canvas>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const OUT_W = 474;
+const OUT_H = 250;
+
+const canvas = document.getElementById("outCanvas");
+const ctx = canvas.getContext("2d");
+
+const fileInput = document.getElementById("fileInput");
+const cropPct = document.getElementById("cropPct");
+const bgAlpha = document.getElementById("bgAlpha");
+const marginPx = document.getElementById("marginPx");
+
+const cropVal = document.getElementById("cropVal");
+const alphaVal = document.getElementById("alphaVal");
+const marginVal = document.getElementById("marginVal");
+
+const downloadBtn = document.getElementById("downloadBtn");
+const resetBtn = document.getElementById("resetBtn");
+
+let sourceCanvas = null;
+
+cropPct.oninput = () => { cropVal.textContent = cropPct.value; if(sourceCanvas) render(); };
+bgAlpha.oninput = () => { alphaVal.textContent = (bgAlpha.value/100).toFixed(2); if(sourceCanvas) render(); };
+marginPx.oninput = () => { marginVal.textContent = marginPx.value; if(sourceCanvas) render(); };
+
+fileInput.addEventListener("change", async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+    sourceCanvas = await rasterizePDF(file);
+  } else {
+    sourceCanvas = await rasterizeImage(file);
+  }
+
+  render();
+  downloadBtn.disabled = false;
+});
+
+async function rasterizeImage(file){
+  return new Promise(resolve=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      c.getContext("2d").drawImage(img,0,0);
+      resolve(c);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function rasterizePDF(file){
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data:buffer}).promise;
+  const page = await pdf.getPage(1);
+  const viewport = page.getViewport({scale:2});
+  const c = document.createElement("canvas");
+  c.width = viewport.width;
+  c.height = viewport.height;
+  await page.render({canvasContext:c.getContext("2d"),viewport}).promise;
+  return c;
+}
+
+function render(){
+  ctx.clearRect(0,0,OUT_W,OUT_H);
+
+  const cropPercent = cropPct.value/100;
+  const alpha = bgAlpha.value/100;
+  const margin = parseInt(marginPx.value);
+
+  // BACKGROUND (cover al ancho completo)
+  const stripH = sourceCanvas.height * cropPercent;
+  const scaleBg = Math.max(OUT_W/sourceCanvas.width, OUT_H/stripH);
+
+  const bgW = sourceCanvas.width * scaleBg;
+  const bgH = stripH * scaleBg;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(
+    sourceCanvas,
+    0,0,sourceCanvas.width,stripH,
+    (OUT_W-bgW)/2,
+    (OUT_H-bgH)/2,
+    bgW,bgH
+  );
+  ctx.restore();
+
+  // FOREGROUND (encaja por ALTO completo)
+  const availableH = OUT_H - margin*2;
+  const scaleFg = availableH / sourceCanvas.height;
+
+  const fgW = sourceCanvas.width * scaleFg;
+  const fgH = sourceCanvas.height * scaleFg;
+
+  const fgX = (OUT_W - fgW)/2;
+  const fgY = margin;
+
+  ctx.drawImage(sourceCanvas, fgX, fgY, fgW, fgH);
+}
+
+downloadBtn.addEventListener("click",()=>{
+  const link = document.createElement("a");
+  link.href = canvas.toDataURL("image/jpeg",0.92);
+  link.download = "portada_474x250.jpg";
+  link.click();
+});
+
+resetBtn.onclick = ()=>{
+  sourceCanvas = null;
+  ctx.clearRect(0,0,OUT_W,OUT_H);
+  fileInput.value="";
+  downloadBtn.disabled = true;
+};
+</script>
+
 </body>
 </html>
