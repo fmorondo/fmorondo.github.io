@@ -223,20 +223,19 @@ function render(){
   );
   ctx.restore();
 
-  // FOREGROUND: encajar por ALTO completo (sin recorte), con margen
-  const availableH = Math.max(1, OUT_H - margin * 2);
-  const scaleFg = availableH / src.height;
+  // FOREGROUND: encajar por ALTO completo (sin padding vertical)
+const scaleFg = OUT_H / src.height;
 
-  const fgW = src.width * scaleFg;
-  const fgH = src.height * scaleFg;
+const fgW = src.width * scaleFg;
+const fgH = src.height * scaleFg; // será exactamente 250
 
-  const fgX = (OUT_W - fgW) / 2;
-  const fgY = margin;
+const fgX = (OUT_W - fgW) / 2;
+const fgY = 0; // pegado arriba
 
-  ctx.save();
-  ctx.globalAlpha = 1.0;
-  ctx.drawImage(src, fgX, fgY, fgW, fgH);
-  ctx.restore();
+ctx.save();
+ctx.globalAlpha = 1.0;
+ctx.drawImage(src, fgX, fgY, fgW, fgH);
+ctx.restore();
 }
 
 downloadBtn.addEventListener("click",()=>{
