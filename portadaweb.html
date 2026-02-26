@@ -31,8 +31,12 @@
     .value { font-variant-numeric: tabular-nums; }
   </style>
 
-  <!-- PDF.js (CDN) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.js" integrity="sha512-Z7Y3oV+Y7I2oNm5M8SgCoZ7m8tKp2mQbqQ0q9+gL1eLw0u6xC8m3yB3pX7Rkzq8y0c2S2Qx7sG6mGq2b8pXw9A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+ <!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+</script>
 </head>
 
 <body>
