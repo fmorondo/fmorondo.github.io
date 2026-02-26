@@ -1,7 +1,7 @@
-const CANVAS_WIDTH = 1365;
-const CANVAS_HEIGHT = 794;
+const CANVAS_WIDTH = 1920;
+const CANVAS_HEIGHT = 1080;
 const MAX_PHOTOS = 12;
-const MIN_PHOTOS = 3;
+const MIN_PHOTOS = 2;
 const EDGE_GAP = 10;
 const INNER_GAP = 10;
 
