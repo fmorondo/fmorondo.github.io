@@ -1,5 +1,5 @@
 const CANVAS_WIDTH = 1920;
-const CANVAS_HEIGHT = 1080;
+const CANVAS_HEIGHT = 1125;
 const MAX_PHOTOS = 12;
 const MIN_PHOTOS = 2;
 const EDGE_GAP = 10;
