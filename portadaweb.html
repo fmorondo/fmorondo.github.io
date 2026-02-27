@@ -67,7 +67,7 @@
       </div>
 
       <div style="display:flex;gap:12px;flex-wrap:wrap;">
-        <button class="primary" id="downloadBtn" disabled>Descargar JPG</button>
+        <button class="primary" id="actionBtn" disabled>Copiar texto + descargar JPG</button>
         <button class="secondary" id="resetBtn" type="button">Reset</button>
       </div>
 
@@ -75,8 +75,15 @@
     </div>
 
     <div>
-      <canvas id="outCanvas" width="474" height="250"></canvas>
+  <canvas id="outCanvas" width="474" height="250"></canvas>
+
+  <div style="margin-top:12px;">
+    <div style="border:1px solid #ddd;border-radius:12px;padding:12px;background:#fff;">
+      <pre id="messageText" style="margin:0;white-space:pre-wrap;"></pre>
     </div>
+  </div>
+</div>
+</div>
   </div>
 </div>
 
@@ -98,9 +105,42 @@ const alphaVal = document.getElementById("alphaVal");
 const marginVal = document.getElementById("marginVal");
 const jpgVal = document.getElementById("jpgVal");
 
-const downloadBtn = document.getElementById("downloadBtn");
+const actionBtn = document.getElementById("actionBtn");
 const resetBtn = document.getElementById("resetBtn");
 const statusEl = document.getElementById("status");
+
+const messageTextEl = document.getElementById("messageText");
+const FIXED_URL = "https://www.diariodenavarra.es/pags/portada-dia.html";
+
+function getTodayPartsMadrid() {
+  const parts = new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).formatToParts(new Date());
+
+  const get = (type) => parts.find(p => p.type === type)?.value;
+  return {
+    weekday: get("weekday"),
+    day: get("day"),
+    month: get("month"),
+    year: get("year"),
+  };
+}
+
+function buildMessageText() {
+  const { weekday, day, month, year } = getTodayPartsMadrid();
+  return `Buenos días, te dejamos la portada de Diario de Navarra de este ${weekday}, ${day} de ${month} de ${year}.\n${FIXED_URL}`;
+}
+
+function updateMessageBox() {
+  messageTextEl.textContent = buildMessageText();
+}
+
+// Inicializa al cargar
+updateMessageBox();
 
 let sourceCanvas = null;
 
@@ -123,7 +163,7 @@ fileInput.addEventListener("change", async e => {
 
   try {
     statusEl.textContent = "Procesando…";
-    downloadBtn.disabled = true;
+    actionBtn.disabled = true;
 
     if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
       if (!window.pdfjsLib) throw new Error("PDF.js no está cargado. Revisa /lib/pdf.min.js");
@@ -133,13 +173,13 @@ fileInput.addEventListener("change", async e => {
     }
 
     render();
-    downloadBtn.disabled = false;
+    actionBtn.disabled = false;
     statusEl.textContent = "Listo.";
   } catch (err) {
     console.error(err);
     statusEl.textContent = "Error: " + (err?.message || String(err));
     sourceCanvas = null;
-    downloadBtn.disabled = true;
+    actionBtn.disabled = true;
     ctx.clearRect(0, 0, OUT_W, OUT_H);
   }
 });
@@ -238,8 +278,23 @@ ctx.drawImage(src, fgX, fgY, fgW, fgH);
 ctx.restore();
 }
 
-downloadBtn.addEventListener("click",()=>{
-  const q = Number(jpgQuality.value) / 100;
+actionBtn.addEventListener("click", async () => {
+  // 1) Copiar texto (mensaje + URL)
+  const textToCopy = buildMessageText();
+  try {
+    await navigator.clipboard.writeText(textToCopy);
+  } catch {
+    // Fallback si clipboard falla
+    const ta = document.createElement("textarea");
+    ta.value = textToCopy;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
+
+  // 2) Descargar JPG
+  const q = Number(jpgQuality?.value ?? 92) / 100; // si mantienes el slider
   const link = document.createElement("a");
   link.href = canvas.toDataURL("image/jpeg", q);
   link.download = "portada_474x250.jpg";
@@ -250,8 +305,9 @@ resetBtn.onclick = ()=>{
   sourceCanvas = null;
   ctx.clearRect(0,0,OUT_W,OUT_H);
   fileInput.value = "";
-  downloadBtn.disabled = true;
+  actionBtn.disabled = true;
   statusEl.textContent = "Sube un archivo para empezar.";
+  updateMessageBox();
 };
 </script>
 </body>
