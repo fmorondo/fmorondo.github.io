@@ -88,9 +88,19 @@ function bindEvents() {
   });
 
   downloadBtn.addEventListener("click", () => {
+    // antes de exportar quitamos cualquier selección para que no se dibuje borde.
+    const prevSelection = state.selectedIndex;
+    state.selectedIndex = -1;
+    render();
+
     const suggestedName = "composicion-1365x794";
     const userName = window.prompt("Nombre del archivo (sin extensión):", suggestedName);
-    if (userName === null) return;
+    if (userName === null) {
+      // restaurar selección si el usuario canceló
+      state.selectedIndex = prevSelection;
+      render();
+      return;
+    }
 
     const cleanName = userName.trim().replace(/[\\/:*?"<>|]+/g, "_");
     const finalName = cleanName || suggestedName;
@@ -99,6 +109,10 @@ function bindEvents() {
     link.href = canvas.toDataURL("image/jpeg", 0.92);
     link.download = `${finalName}.jpg`;
     link.click();
+
+    // restaurar selección original y repintar
+    state.selectedIndex = prevSelection;
+    render();
   });
   clearBtn.addEventListener("click", clearAllPhotos);
 
