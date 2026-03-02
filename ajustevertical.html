@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ajuste Vertical · Redimensiona fotos verticales a 1920×1125</title>
+  <meta name="description" content="Herramienta para convertir imágenes verticales a formato horizontal 1920×1125 con fondo desenfocado" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- CSS centralizado -->
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .canvas-wrapper {
+      background: #f0f0f0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 12px;
+    }
+    #canvas {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+      Ajuste Vertical
+      <span class="badge">1920×1125</span>
+    </div>
+  </header>
+
+  <main class="stack">
+    <!-- Card 1: Carga y controles -->
+    <section class="card stack">
+      <div class="stack" style="gap:6px">
+        <h1 class="title">Redimensiona foto vertical</h1>
+        <p class="subtitle">Carga una imagen vertical y ajústala al formato <strong>1920×1125 px</strong> con fondo desenfocado.</p>
+      </div>
+
+      <!-- Dropzone -->
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" name="file" accept="image/*" />
+        <div>
+          <h3 style="margin:0 0 6px 0">Arrastra tu imagen aquí</h3>
+          <div class="hint">o haz clic para seleccionar un archivo vertical</div>
+        </div>
+      </label>
+
+      <!-- Controles de escala -->
+      <div class="stack" style="gap: 12px; margin-top: 12px;">
+        <div class="stack" style="gap: 6px;">
+          <label for="fgScaleSlider">Escala del primer plano: <strong id="fgScaleValue">1.0</strong>×</label>
+          <input type="range" id="fgScaleSlider" min="0.8" max="1.6" step="0.05" value="1.0" />
+          <div class="hint">Ajusta el tamaño de la imagen principal en primer plano</div>
+        </div>
+
+        <div class="stack" style="gap: 6px;">
+          <label for="bgScaleSlider">Escala del fondo: <strong id="bgScaleValue">1.0</strong>×</label>
+          <input type="range" id="bgScaleSlider" min="1.0" max="2.2" step="0.1" value="1.0" />
+          <div class="hint">Ajusta el nivel de zoom del fondo desenfocado (blur 12px, opacidad 15%)</div>
+        </div>
+      </div>
+
+      <!-- Botones -->
+      <div class="row">
+        <button id="exportBtn" disabled>Exportar JPG</button>
+        <button type="button" class="btn-secondary" id="resetPosBtn" disabled>Reset posición</button>
+      </div>
+
+      <div class="status" id="statusMsg">Esperando imagen…</div>
+    </section>
+
+    <!-- Card 2: Canvas y preview -->
+    <section class="card stack">
+      <h2 style="margin: 0;">Vista previa (1920×1125)</h2>
+      <div class="hint">Arrastra sobre la imagen para recolocar el primer plano. Se exportará en JPG con calidad alta.</div>
+      <div class="canvas-wrapper">
+        <canvas id="canvas" width="1920" height="1125"></canvas>
+      </div>
+    </section>
+  </main>
+
+  <script src="./ajustevertical/script.js"></script>
+</body>
+</html>
