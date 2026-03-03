@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { PDFDocument } from 'pdf-lib';
+import JSZip from 'jszip';
 import { UploadIcon, CheckCircleIcon, SpinnerIcon, PdfFileIcon, XMarkIcon } from './components/Icons';
 
 // Set up the PDF.js worker
@@ -9,6 +10,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 
 type Status = 'idle' | 'loading' | 'processing' | 'downloading' | 'error';
 type Quality = 'high' | 'low';
+type ExportFormat = 'pdf' | 'jpg';
 
 const App: React.FC = () => {
     const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -18,6 +20,7 @@ const App: React.FC = () => {
     const [status, setStatus] = useState<Status>('idle');
     const [error, setError] = useState<string | null>(null);
     const [quality, setQuality] = useState<Quality>('high');
+    const [exportFormat, setExportFormat] = useState<ExportFormat>('pdf');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const resetState = useCallback(() => {
@@ -134,11 +137,9 @@ const App: React.FC = () => {
         setSelectedPages(new Set());
     };
 
-    const handleDownload = async () => {
+    const handleDownloadPDF = async () => {
         if (!pdfDoc || selectedPages.size === 0 || !pdfFile) return;
 
-        setStatus('downloading');
-        setError(null);
         try {
             const arrayBuffer = await pdfFile.arrayBuffer();
             const srcPdf = await PDFDocument.load(arrayBuffer);
@@ -163,6 +164,72 @@ const App: React.FC = () => {
             console.error(err);
             setError('Ocurrió un error durante la exportación. Por favor, inténtalo de nuevo.');
             setStatus('error');
+        }
+    };
+
+    const handleDownloadJPG = async () => {
+        if (!pdfDoc || selectedPages.size === 0 || !pdfFile) return;
+
+        try {
+            const zip = new JSZip();
+            const scale = quality === 'high' ? 2.0 : 1.0;
+            const jpegQuality = quality === 'high' ? 0.92 : 0.75;
+
+            const pagePromises = Array.from(selectedPages).map(pageIndex => {
+                return new Promise<void>(async (resolve, reject) => {
+                    try {
+                        const page = await pdfDoc.getPage(pageIndex + 1);
+                        const viewport = page.getViewport({ scale });
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+
+                        if (!context) return reject(new Error('No se pudo obtener el contexto del canvas'));
+
+                        await page.render({ canvasContext: context, viewport }).promise;
+                        canvas.toBlob(blob => {
+                            if (blob) {
+                                zip.file(`pagina_${pageIndex + 1}.jpg`, blob);
+                                resolve();
+                            } else {
+                                reject(new Error(`No se pudo crear el blob para la página ${pageIndex + 1}`));
+                            }
+                        }, 'image/jpeg', jpegQuality);
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+            });
+
+            await Promise.all(pagePromises);
+
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(zipBlob);
+            link.download = `${pdfFile.name.replace('.pdf', '')}_paginas.zip` || 'paginas.zip';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+        } catch (err) {
+            console.error(err);
+            setError('Ocurrió un error durante la descarga. Por favor, inténtalo de nuevo.');
+            setStatus('error');
+        }
+    };
+
+    const handleDownload = async () => {
+        if (!pdfDoc || selectedPages.size === 0) return;
+
+        setStatus('downloading');
+        setError(null);
+        try {
+            if (exportFormat === 'pdf') {
+                await handleDownloadPDF();
+            } else {
+                await handleDownloadJPG();
+            }
         } finally {
             if (status !== 'error') {
                 setStatus('idle');
@@ -267,6 +334,27 @@ const App: React.FC = () => {
                                 <button onClick={handleDeselectAll} className="px-3 py-1.5 text-sm bg-slate-700 rounded-md hover:bg-slate-600 transition-colors">Deseleccionar todo</button>
                             </div>
                             <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-slate-300">Formato:</span>
+                                <div role="radiogroup" className="flex items-center rounded-md bg-slate-700 p-0.5">
+                                    <button
+                                        role="radio"
+                                        aria-checked={exportFormat === 'pdf'}
+                                        onClick={() => setExportFormat('pdf')}
+                                        className={`px-3 py-1 text-sm rounded-md transition-colors ${exportFormat === 'pdf' ? 'bg-sky-600 text-white shadow' : 'text-slate-300 hover:bg-slate-600/50'}`}
+                                    >
+                                        PDF
+                                    </button>
+                                    <button
+                                        role="radio"
+                                        aria-checked={exportFormat === 'jpg'}
+                                        onClick={() => setExportFormat('jpg')}
+                                        className={`px-3 py-1 text-sm rounded-md transition-colors ${exportFormat === 'jpg' ? 'bg-sky-600 text-white shadow' : 'text-slate-300 hover:bg-slate-600/50'}`}
+                                    >
+                                        JPG (ZIP)
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
                                 <span className="text-sm font-medium text-slate-300">Calidad:</span>
                                 <div role="radiogroup" className="flex items-center rounded-md bg-slate-700 p-0.5">
                                     <button
@@ -293,7 +381,7 @@ const App: React.FC = () => {
                                 className="px-4 py-1.5 text-sm font-semibold bg-sky-600 text-white rounded-md hover:bg-sky-500 transition-all disabled:bg-slate-600 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                                 {status === 'downloading' && <SpinnerIcon className="w-4 h-4 animate-spin" />}
-                                {status === 'downloading' ? 'Exportando...' : `Exportar PDF (${selectedPages.size})`}
+                                {status === 'downloading' ? 'Exportando...' : `Exportar ${exportFormat.toUpperCase()} (${selectedPages.size})`}
                             </button>
                         </div>
                     </div>
