@@ -150,7 +150,7 @@ const App: React.FC = () => {
             copiedPages.forEach((p) => newPdf.addPage(p));
 
             const pdfBytes = await newPdf.save();
-            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
 
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
