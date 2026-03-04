@@ -220,7 +220,7 @@
     botonDescargar.addEventListener('click', () => {
       const url = urlDescargaDirecta || urlDescargaBackend;
       if (!url) return;
-      progreso.textContent += '\n📥 Iniciando descarga manual...';
+      progreso.textContent += '\n📥 Iniciando descarga manual... Si no aparece, revisa el bloqueador de ventanas emergentes...';
       dispararDescarga(url, nombreArchivoZip, true);
     });
 
@@ -271,7 +271,7 @@
                     if (intervaloProgreso) clearInterval(intervaloProgreso);
                     urlDescargaDirecta = urlFirmada;
                     nombreArchivoZip = 'transcripciones.zip';
-                    progreso.textContent += '\n✅ ZIP disponible. Intentando descarga automática y dejando botón manual por si el navegador la bloquea.';
+                    progreso.textContent += '\n✅ ZIP disponible. 📥 Intentando descarga automática; si el navegador la bloquea, usa el botón manual (CTRL+J para ver descargas).';
                     botonDescargar.classList.remove('hidden');
                     botonReintentar.classList.remove('hidden');
                     intentarDescargaAutomatica();
@@ -311,7 +311,7 @@
       try {
         const res = await fetch(urlZip, { method: 'GET' });
         if (res.ok) {
-          progreso.textContent += `\n✅ Transcripción completada. Pulsa el botón para descargar.`;
+          progreso.textContent += `\n✅ Transcripción completada. 📥 Pulsa el botón para descargar.`;
           zipDescargable = nombreZip;
           nombreArchivoZip = nombreZip;
           urlDescargaBackend = urlZip;
