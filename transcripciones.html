@@ -96,6 +96,9 @@
 
     let zipDescargable = null;      // nombre del ZIP para fallback local
     let nombreZipPendiente = null;  // idem
+    let urlDescargaDirecta = null;  // signed URL de GCS (opción preferente)
+    let urlDescargaBackend = null;  // /descargar/<zip> (fallback)
+    let nombreArchivoZip = 'transcripciones.zip';
     let intervaloProgreso = null;
 
     function bloquearUI(b) {
@@ -106,10 +109,40 @@
       selPrompt.disabled = b;
     }
 
-    limpiarBtn.addEventListener('click', () => {
-      archivoInput.value = '';
+    function limpiarEstadoDescarga() {
       zipDescargable = null;
       nombreZipPendiente = null;
+      urlDescargaDirecta = null;
+      urlDescargaBackend = null;
+      nombreArchivoZip = 'transcripciones.zip';
+    }
+
+    function dispararDescarga(url, nombre = 'transcripciones.zip', nuevaPestana = false) {
+      if (!url) return false;
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.rel = 'noopener';
+      if (nuevaPestana) enlace.target = '_blank';
+      enlace.download = nombre;
+      document.body.appendChild(enlace);
+      enlace.click();
+      document.body.removeChild(enlace);
+      return true;
+    }
+
+    function intentarDescargaAutomatica(intento = 0, maxIntentos = 3) {
+      const url = urlDescargaDirecta || urlDescargaBackend;
+      if (!url) return;
+
+      dispararDescarga(url, nombreArchivoZip, false);
+      if (intento + 1 < maxIntentos) {
+        setTimeout(() => intentarDescargaAutomatica(intento + 1, maxIntentos), 2500);
+      }
+    }
+
+    limpiarBtn.addEventListener('click', () => {
+      archivoInput.value = '';
+      limpiarEstadoDescarga();
       botonDescargar.classList.add('hidden');
       botonReintentar.classList.add('hidden');
       progreso.textContent = 'Esperando archivo...';
@@ -185,42 +218,26 @@
     });
 
     botonDescargar.addEventListener('click', () => {
-      if (!zipDescargable) return;
-      const url = `${BASE_URL}/descargar/` + zipDescargable;
-
-      const descargar = (intentos = 0) => {
-        fetch(url, { method: 'HEAD' }).then(res => {
-          if (res.ok) {
-            const enlace = document.createElement('a');
-            enlace.href = url;
-            enlace.download = zipDescargable;
-            enlace.click();
-          } else {
-            if (intentos < 4) {
-              progreso.textContent += `\n⏳ ZIP aún no listo para descargar (intento ${intentos + 1}). Reintentando...`;
-              setTimeout(() => descargar(intentos + 1), 2000);
-            } else {
-              progreso.textContent += `\n❌ No se pudo descargar el ZIP después de varios intentos.`;
-            }
-          }
-        }).catch(() => {
-          if (intentos < 4) { setTimeout(() => descargar(intentos + 1), 2000); }
-          else { progreso.textContent += `\n❌ Error al intentar descargar el ZIP.`; }
-        });
-      };
-
-      descargar();
+      const url = urlDescargaDirecta || urlDescargaBackend;
+      if (!url) return;
+      progreso.textContent += '\n📥 Iniciando descarga manual...';
+      dispararDescarga(url, nombreArchivoZip, true);
     });
 
     botonReintentar.addEventListener('click', () => {
-      if (nombreZipPendiente) verificarZIP(nombreZipPendiente);
+      const url = urlDescargaDirecta || urlDescargaBackend;
+      if (!url && nombreZipPendiente) {
+        verificarZIP(nombreZipPendiente);
+        return;
+      }
+      progreso.textContent += '\n🔁 Reintentando descarga...';
+      intentarDescargaAutomatica(0, 2);
     });
 
     function iniciarSSE(gs_uri) {
       progreso.textContent += `\n🎛️ Modo: prompt=${selPrompt.value}, idioma=${selIdioma.value}\n`;
       progreso.textContent += '\n🧠 Procesando audio...\n';
-      zipDescargable = null;
-      nombreZipPendiente = null;
+      limpiarEstadoDescarga();
       botonDescargar.classList.add('hidden');
       botonReintentar.classList.add('hidden');
 
@@ -252,14 +269,12 @@
                   if (data.startsWith('DOWNLOAD_URL::')) {
                     const urlFirmada = data.split('::')[1];
                     if (intervaloProgreso) clearInterval(intervaloProgreso);
-                    progreso.textContent += '\n✅ ZIP disponible. Está en la carpeta de Descargas del ordenador o pulsando CRTL+J en tu navegador';
-                    const a = document.createElement('a');
-                    a.href = urlFirmada;
-                    a.download = 'transcripciones.zip';
-                    a.rel = 'noopener';
-                    a.click();
-                    botonDescargar.classList.add('hidden');
-                    botonReintentar.classList.add('hidden');
+                    urlDescargaDirecta = urlFirmada;
+                    nombreArchivoZip = 'transcripciones.zip';
+                    progreso.textContent += '\n✅ ZIP disponible. Intentando descarga automática y dejando botón manual por si el navegador la bloquea.';
+                    botonDescargar.classList.remove('hidden');
+                    botonReintentar.classList.remove('hidden');
+                    intentarDescargaAutomatica();
                     bloquearUI(false);
                     return;
                   }
@@ -268,6 +283,9 @@
                   if (data.startsWith('DOWNLOAD::')) {
                     const nombreZip = data.split('::')[1];
                     nombreZipPendiente = nombreZip;
+                    zipDescargable = nombreZip;
+                    nombreArchivoZip = nombreZip;
+                    urlDescargaBackend = `${BASE_URL}/descargar/` + nombreZip;
                     progreso.textContent += `\n🕒 Esperando 30 segundos antes de verificar la descarga...`;
                     setTimeout(() => { verificarZIP(nombreZip); }, 30000);
                   } else {
@@ -291,17 +309,16 @@
       const urlZip = `${BASE_URL}/descargar/` + nombreZip;
       progreso.textContent += `\n📦 Verificando disponibilidad real del ZIP (intento ${intentos + 1})...`;
       try {
-        const res = await fetch(urlZip, { method: 'GET', headers: { 'Range': 'bytes=0-100' } });
+        const res = await fetch(urlZip, { method: 'GET' });
         if (res.ok) {
-          const blob = await res.blob();
-          if (blob.size > 0) {
-            progreso.textContent += `\n✅ Transcripción completada. Pulsa el botón para descargar.`;
-            zipDescargable = nombreZip;
-            botonDescargar.classList.remove('hidden');
-            botonReintentar.classList.add('hidden');
-            bloquearUI(false);
-            return;
-          }
+          progreso.textContent += `\n✅ Transcripción completada. Pulsa el botón para descargar.`;
+          zipDescargable = nombreZip;
+          nombreArchivoZip = nombreZip;
+          urlDescargaBackend = urlZip;
+          botonDescargar.classList.remove('hidden');
+          botonReintentar.classList.remove('hidden');
+          bloquearUI(false);
+          return;
         }
         if (intentos < 6) {
           setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000);
