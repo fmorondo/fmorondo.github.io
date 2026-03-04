@@ -101,6 +101,7 @@
     let nombreArchivoZip = 'transcripciones.zip';
     let ultimaLineaSSE = '';
     let etapaActual = '';
+    let intervaloPulsoCorreccion = null;
 
     function bloquearUI(b) {
       subirBtn.disabled = b;
@@ -162,6 +163,15 @@
       if (etapa && etapa !== etapaActual) {
         etapaActual = etapa;
         progreso.textContent += `\n${etapa}\n`;
+        if (etapaActual === '✍️ Etapa: corrección') {
+          if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
+          intervaloPulsoCorreccion = setInterval(() => {
+            progreso.textContent += '\n⏳ Seguimos corrigiendo el texto...\n';
+          }, 30000);
+        } else if (intervaloPulsoCorreccion) {
+          clearInterval(intervaloPulsoCorreccion);
+          intervaloPulsoCorreccion = null;
+        }
       }
 
       progreso.textContent += linea + '\n';
@@ -175,6 +185,8 @@
       progreso.textContent = 'Esperando archivo...';
       ultimaLineaSSE = '';
       etapaActual = '';
+      if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
+      intervaloPulsoCorreccion = null;
       bloquearUI(false);
       archivoInput.focus();
     });
@@ -267,6 +279,8 @@
       progreso.textContent += '\n🧠 Procesando audio...\n';
       ultimaLineaSSE = '';
       etapaActual = '';
+      if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
+      intervaloPulsoCorreccion = null;
       limpiarEstadoDescarga();
       botonDescargar.classList.add('hidden');
       botonReintentar.classList.add('hidden');
@@ -283,7 +297,12 @@
 
           const read = () => {
             reader.read().then(({ done, value }) => {
-              if (done) { bloquearUI(false); return; }
+              if (done) {
+                if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
+                intervaloPulsoCorreccion = null;
+                bloquearUI(false);
+                return;
+              }
               const chunk = decoder.decode(value, { stream: true });
               chunk.split('\n\n').forEach(block => {
                 const match = block.match(/^data:\s*(.*)$/m);
@@ -293,6 +312,8 @@
                   // Descarga directa desde GCS (sin esperas)
                   if (data.startsWith('DOWNLOAD_URL::')) {
                     const urlFirmada = data.split('::')[1];
+                    if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
+                    intervaloPulsoCorreccion = null;
                     urlDescargaDirecta = urlFirmada;
                     nombreArchivoZip = 'transcripciones.zip';
                     progreso.textContent += '\n✅ ZIP disponible. Intentando descarga automática y dejando botón manual por si el navegador la bloquea.';
@@ -306,6 +327,8 @@
                   // Fallback clásico: /descargar/<zip> desde el backend
                   if (data.startsWith('DOWNLOAD::')) {
                     const nombreZip = data.split('::')[1];
+                    if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
+                    intervaloPulsoCorreccion = null;
                     nombreZipPendiente = nombreZip;
                     zipDescargable = nombreZip;
                     nombreArchivoZip = nombreZip;
@@ -323,6 +346,8 @@
           read();
         })
         .catch(() => {
+          if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
+          intervaloPulsoCorreccion = null;
           progreso.textContent += '\n❌ Error al iniciar el procesamiento.';
           bloquearUI(false);
         });
