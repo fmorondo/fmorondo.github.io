@@ -36,15 +36,30 @@
   </style>
   <script>
     async function acortar(url) {
-      try {
-        const encoded = encodeURIComponent(url);
-        const resp = await fetch(`https://is.gd/create.php?format=json&url=${encoded}`);
-        if (!resp.ok) throw new Error('network');
-        const data = await resp.json();
-        if (data && data.shorturl) return data.shorturl;
-      } catch (err) {
-        console.warn('No se pudo acortar la URL:', err);
+      const encoded = encodeURIComponent(url);
+      const endpoints = [
+        `https://is.gd/create.php?format=json&url=${encoded}`,
+        `https://v.gd/create.php?format=json&url=${encoded}`
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          const resp = await fetch(endpoint);
+          if (!resp.ok) continue;
+          const text = await resp.text();
+          try {
+            const data = JSON.parse(text);
+            if (data && data.shorturl) return data.shorturl;
+          } catch {
+            // Some endpoints may return plain text, try as URL
+            if (text.startsWith('http')) return text.trim();
+          }
+        } catch (err) {
+          console.warn('Acortador falló en endpoint', endpoint, err);
+        }
       }
+
+      console.warn('No se pudo acortar la URL, se conserva original');
       return url;
     }
 
