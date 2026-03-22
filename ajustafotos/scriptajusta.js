@@ -93,7 +93,7 @@ function bindEvents() {
     state.selectedIndex = -1;
     render();
 
-    const suggestedName = "composicion-1365x794";
+    const suggestedName = "composicion-1920x1125";
     const userName = window.prompt("Nombre del archivo (sin extensión):", suggestedName);
     if (userName === null) {
       // restaurar selección si el usuario canceló
