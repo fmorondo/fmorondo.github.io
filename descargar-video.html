@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Descarga de vídeo · Diario de Navarra</title>
+  <meta
+    name="description"
+    content="Valida publicaciones de X, Instagram o TikTok y descarga el vídeo MP4 tras aprobación manual."
+  />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/x-icon" href="https://fmorondo.github.io/favicon.ico">
+  <meta name="robots" content="noindex, nofollow">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 20V10" />
+        <path d="M18 20V4" />
+        <path d="M6 20v-4" />
+      </svg>
+      Diario de Navarra · Utilidades
+      <span class="badge">Descarga vídeo</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="card stack" aria-labelledby="titulo">
+      <div class="stack" style="gap:6px">
+        <h1 id="titulo" class="title">🎬 Descarga de vídeo con validación manual</h1>
+        <p class="subtitle">
+          Pega la URL de una publicación de X, Instagram o TikTok. El servicio valida la publicación, estima si parece una cuenta institucional y solo descarga el MP4 cuando confirmas la aprobación manual.
+        </p>
+      </div>
+
+      <details>
+        <summary>📘 Cómo usar este servicio</summary>
+        <div class="panel">
+          <ul>
+            <li>Pega la URL completa de una publicación individual.</li>
+            <li>Pulsa en <strong>Validar publicación</strong> y espera a que termine el análisis.</li>
+            <li>Revisa la cuenta, la URL normalizada, la confianza y los motivos.</li>
+            <li>Marca la aprobación manual y pulsa en <strong>Descargar MP4</strong>.</li>
+          </ul>
+        </div>
+      </details>
+
+      <div class="stack">
+        <label for="video-url">Enlace de la publicación:</label>
+        <input
+          type="text"
+          id="video-url"
+          placeholder="https://www.instagram.com/p/..."
+          required
+        />
+      </div>
+
+      <div class="row">
+        <button id="validate-button" type="button">🔎 Validar publicación</button>
+        <button id="download-button" type="button" disabled>📥 Descargar MP4</button>
+        <button id="limpiar" class="btn-secondary" type="button">Limpiar campo</button>
+      </div>
+
+      <div class="stack">
+        <h3 style="margin:8px 0 0 0">Progreso</h3>
+        <pre id="status-message" class="result">Esperando URL...</pre>
+
+        <div id="progress-container" class="progress" style="display:none;">
+          <div id="progress-bar"></div>
+        </div>
+
+        <p class="footer">
+          La validación es orientativa. La API no confirma derechos de uso ni licencias.
+        </p>
+      </div>
+
+      <div id="validation-block" class="stack hidden">
+        <div class="row">
+          <span id="platform-badge" class="badge">Plataforma</span>
+          <span id="signal-badge" class="badge">Señal</span>
+          <span id="confidence-badge" class="badge">Confianza</span>
+        </div>
+
+        <div class="panel">
+          <div class="stack-tight">
+            <div><strong>URL normalizada:</strong> <span id="normalized-url">-</span></div>
+            <div><strong>Post ID:</strong> <span id="post-id">-</span></div>
+            <div><strong>Cuenta:</strong> <span id="account-handle">-</span></div>
+            <div><strong>Título:</strong> <span id="title-value">-</span></div>
+          </div>
+        </div>
+
+        <div class="info">
+          <strong>Motivos de la validación</strong>
+          <ul id="reasons-list"></ul>
+        </div>
+
+        <label class="row" style="align-items:flex-start;">
+          <input id="approval-checkbox" type="checkbox" style="margin-top:2px;">
+          <span>He revisado manualmente la validación y autorizo la descarga del MP4.</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="card stack">
+      <div class="stack-tight">
+        <h2 class="section-heading">Plataformas soportadas</h2>
+        <p class="subtitle">Datos cargados desde la API de Cloud Run.</p>
+      </div>
+      <pre id="platforms-message" class="result">Cargando plataformas…</pre>
+    </section>
+  </main>
+
+  <script>
+    const CLOUD_RUN_BASE = "https://descarga-audio-811896322472.europe-west1.run.app";
+
+    const urlInput = document.getElementById('video-url');
+    const validateButton = document.getElementById('validate-button');
+    const downloadButton = document.getElementById('download-button');
+    const limpiarBtn = document.getElementById('limpiar');
+    const approvalCheckbox = document.getElementById('approval-checkbox');
+    const statusMessage = document.getElementById('status-message');
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const validationBlock = document.getElementById('validation-block');
+    const platformsMessage = document.getElementById('platforms-message');
+
+    let validationToken = null;
+    let isLoading = false;
+
+    function showMessage(message, isError = false) {
+      statusMessage.textContent = message;
+      statusMessage.className = 'result';
+      if (isError) {
+        statusMessage.style.borderColor = '#ef4444';
+        statusMessage.style.color = '#b91c1c';
+        statusMessage.style.backgroundColor = '#fef2f2';
+      } else {
+        statusMessage.style.borderColor = '';
+        statusMessage.style.color = '';
+        statusMessage.style.backgroundColor = '';
+      }
+      statusMessage.style.display = 'block';
+    }
+
+    function setProgress(percent, visible = true) {
+      progressContainer.style.display = visible ? 'block' : 'none';
+      progressBar.style.width = `${percent}%`;
+    }
+
+    function updateDownloadState() {
+      downloadButton.disabled = isLoading || !validationToken || !approvalCheckbox.checked;
+    }
+
+    function toggleLoading(loading, phase = 'validate') {
+      isLoading = loading;
+      urlInput.disabled = loading;
+      validateButton.disabled = loading;
+      limpiarBtn.disabled = loading;
+      approvalCheckbox.disabled = loading;
+      validateButton.textContent = phase === 'validate' && loading ? 'Procesando…' : '🔎 Validar publicación';
+      downloadButton.textContent = phase === 'download' && loading ? 'Procesando…' : '📥 Descargar MP4';
+      updateDownloadState();
+      if (loading) {
+        statusMessage.style.display = 'none';
+      }
+    }
+
+    function resetValidation() {
+      validationToken = null;
+      approvalCheckbox.checked = false;
+      validationBlock.classList.add('hidden');
+      document.getElementById('normalized-url').textContent = '-';
+      document.getElementById('post-id').textContent = '-';
+      document.getElementById('account-handle').textContent = '-';
+      document.getElementById('title-value').textContent = '-';
+      document.getElementById('platform-badge').textContent = 'Plataforma';
+      document.getElementById('signal-badge').textContent = 'Señal';
+      document.getElementById('confidence-badge').textContent = 'Confianza';
+      setProgress(0, false);
+      updateDownloadState();
+    }
+
+    function renderValidation(data) {
+      validationToken = data.validation_token;
+      document.getElementById('normalized-url').textContent = data.normalized_url || '-';
+      document.getElementById('post-id').textContent = data.post_id || '-';
+      document.getElementById('account-handle').textContent = data.account_handle || '-';
+      document.getElementById('title-value').textContent = data.title || '-';
+      document.getElementById('platform-badge').textContent = `Plataforma: ${data.platform || '-'}`;
+      document.getElementById('signal-badge').textContent = data.is_likely_public_service_account
+        ? 'Cuenta posiblemente institucional'
+        : 'Sin señal institucional clara';
+      document.getElementById('confidence-badge').textContent = `Confianza ${Math.round((data.confidence_score || 0) * 100)}%`;
+
+      const reasonsList = document.getElementById('reasons-list');
+      reasonsList.innerHTML = '';
+      for (const reason of data.reasons || []) {
+        const item = document.createElement('li');
+        item.textContent = reason;
+        reasonsList.appendChild(item);
+      }
+
+      validationBlock.classList.remove('hidden');
+      updateDownloadState();
+    }
+
+    async function loadPlatforms() {
+      try {
+        const response = await fetch(`${CLOUD_RUN_BASE}/platforms`);
+        const data = await response.json();
+        const lines = (data.platforms || []).map((platform) => (
+          `${platform.name} · cookies ${platform.cookies_optional ? 'opcionales' : 'no requeridas por defecto'}`
+        ));
+        platformsMessage.textContent = lines.join('\n') || 'No se recibieron plataformas.';
+      } catch (error) {
+        console.error('Error al cargar plataformas:', error);
+        platformsMessage.textContent = 'No se pudo cargar /platforms desde Cloud Run.';
+      }
+    }
+
+    async function validateUrl() {
+      const url = urlInput.value.trim();
+      if (!url) {
+        showMessage('Por favor, introduce una URL válida.', true);
+        return;
+      }
+
+      resetValidation();
+      toggleLoading(true, 'validate');
+      setProgress(45, true);
+
+      try {
+        const response = await fetch(`${CLOUD_RUN_BASE}/validate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || `Error ${response.status}: ${response.statusText}`);
+        }
+
+        setProgress(100, true);
+        renderValidation(data);
+        showMessage('✅ Validación completada. Revisa el resultado y marca la aprobación manual para descargar.');
+      } catch (error) {
+        console.error('Error al validar:', error);
+        setProgress(0, false);
+        showMessage(`❌ Error en la validación: ${error.message || 'Fallo de red con Cloud Run.'}`, true);
+      } finally {
+        toggleLoading(false, 'validate');
+      }
+    }
+
+    async function downloadVideo() {
+      if (!validationToken) {
+        showMessage('❌ Primero necesitas una validación con token.', true);
+        return;
+      }
+      if (!approvalCheckbox.checked) {
+        showMessage('❌ Debes marcar la aprobación manual antes de descargar.', true);
+        return;
+      }
+
+      toggleLoading(true, 'download');
+      setProgress(60, true);
+
+      try {
+        const response = await fetch(`${CLOUD_RUN_BASE}/download`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            validation_token: validationToken,
+            manual_approved: true,
+          }),
+        });
+
+        if (!response.ok) {
+          let errorMessage = `Error ${response.status}: ${response.statusText}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch (e) {
+            if (response.status === 504) {
+              errorMessage = 'Tiempo de espera agotado. El vídeo puede ser demasiado pesado o la plataforma no responde.';
+            }
+          }
+          throw new Error(errorMessage);
+        }
+
+        const blob = await response.blob();
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = 'video_descargado.mp4';
+        if (contentDisposition) {
+          const match = contentDisposition.match(/filename="?([^"]+)"?/);
+          if (match && match[1]) {
+            filename = match[1];
+          }
+        }
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        setProgress(100, true);
+        showMessage(`✅ Descarga iniciada con éxito. Archivo: ${filename}`);
+      } catch (error) {
+        console.error('Error al descargar:', error);
+        setProgress(0, false);
+        showMessage(`❌ Error en la descarga: ${error.message || 'Fallo de red con Cloud Run.'}`, true);
+      } finally {
+        toggleLoading(false, 'download');
+      }
+    }
+
+    limpiarBtn.addEventListener('click', () => {
+      urlInput.value = '';
+      urlInput.focus();
+      resetValidation();
+      showMessage('Esperando URL...');
+    });
+
+    validateButton.addEventListener('click', validateUrl);
+    downloadButton.addEventListener('click', downloadVideo);
+    approvalCheckbox.addEventListener('change', updateDownloadState);
+
+    loadPlatforms();
+    updateDownloadState();
+  </script>
+</body>
+</html>
