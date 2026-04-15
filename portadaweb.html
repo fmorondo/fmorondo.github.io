@@ -233,7 +233,11 @@ function render(){
 
   const cropPercent = Number(cropPct.value) / 100;
   const alpha = Number(bgAlpha.value) / 100;
-  const margin = parseInt(marginPx.value, 10);
+  const margin = Math.max(0, Math.min(parseInt(marginPx.value, 10), Math.floor(Math.min(OUT_W, OUT_H) / 2) - 1));
+  const contentX = margin;
+  const contentY = margin;
+  const contentW = Math.max(1, OUT_W - margin * 2);
+  const contentH = Math.max(1, OUT_H - margin * 2);
 
   // IMPORTANTÍSIMO para JPG: fondo blanco (evita “negro” al aplanar transparencia)
   ctx.save();
@@ -242,16 +246,16 @@ function render(){
   ctx.fillRect(0, 0, OUT_W, OUT_H);
   ctx.restore();
 
-  // BACKGROUND: franja superior (desde y=0), escalada "cover" a 474x250
+  // BACKGROUND: franja superior, escalada para cubrir el area util respetando el margen.
   const stripH = Math.max(1, Math.floor(src.height * cropPercent));
-  const scaleBg = Math.max(OUT_W / src.width, OUT_H / stripH);
+  const scaleBg = Math.max(contentW / src.width, contentH / stripH);
 
   const bgW = src.width * scaleBg;
   const bgH = stripH * scaleBg;
 
-  // Anclar arriba (no centrar vertical): mantiene “mancheta + titulares”
-  const bgX = (OUT_W - bgW) / 2;
-  const bgY = 0;
+  // Anclar arriba dentro del area util: mantiene mancheta y titulares.
+  const bgX = contentX + (contentW - bgW) / 2;
+  const bgY = contentY;
 
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -262,19 +266,17 @@ function render(){
   );
   ctx.restore();
 
-  // FOREGROUND: encajar por ALTO completo (sin padding vertical)
-const scaleFg = OUT_H / src.height;
+  // FOREGROUND: encajar dentro del area util y dejar el margen libre en todo el contorno.
+  const scaleFg = Math.min(contentW / src.width, contentH / src.height);
+  const fgW = src.width * scaleFg;
+  const fgH = src.height * scaleFg;
+  const fgX = contentX + (contentW - fgW) / 2;
+  const fgY = contentY + (contentH - fgH) / 2;
 
-const fgW = src.width * scaleFg;
-const fgH = src.height * scaleFg; // será exactamente 250
-
-const fgX = (OUT_W - fgW) / 2;
-const fgY = 0; // pegado arriba
-
-ctx.save();
-ctx.globalAlpha = 1.0;
-ctx.drawImage(src, fgX, fgY, fgW, fgH);
-ctx.restore();
+  ctx.save();
+  ctx.globalAlpha = 1.0;
+  ctx.drawImage(src, fgX, fgY, fgW, fgH);
+  ctx.restore();
 }
 
 actionBtn.addEventListener("click", async () => {

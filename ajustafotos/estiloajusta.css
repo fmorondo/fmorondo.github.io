@@ -239,8 +239,9 @@ button:disabled {
 }
 
 #previewCanvas {
-  width: 1365px;
-  height: 794px;
+  width: min(100%, 1365px);
+  height: auto;
+  aspect-ratio: 1920 / 1125;
   border: 1px solid var(--border);
   background: #e4e5e8;
   cursor: default;
