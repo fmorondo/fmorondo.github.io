@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Descarga Parlamento de Navarra · Diario de Navarra</title>
+  <meta name="description" content="Grabación de directos y descarga de mediateca pública del Parlamento de Navarra.">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/x-icon" href="https://fmorondo.github.io/favicon.ico">
+  <meta name="robots" content="noindex, nofollow">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 20V10"></path>
+        <path d="M18 20V4"></path>
+        <path d="M6 20v-4"></path>
+      </svg>
+      Diario de Navarra · Utilidades
+      <span class="badge">Parlamento</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="card stack">
+      <div class="stack-tight">
+        <h1 class="title">🎬 Directos del Parlamento de Navarra</h1>
+        <p class="subtitle">Vista previa y grabación local de los tres canales HLS públicos.</p>
+      </div>
+      <div id="browser-warning" class="notice hidden"></div>
+      <div id="streams-grid" class="stream-grid"></div>
+    </section>
+
+    <section class="card stack">
+      <div class="section-bar">
+        <div class="stack-tight">
+          <h2 class="section-heading">📚 Grabaciones recientes</h2>
+          <p class="subtitle">Últimas grabaciones publicadas en la mediateca.</p>
+        </div>
+        <button id="refresh-recents" class="btn-secondary" type="button">Actualizar</button>
+      </div>
+      <div id="recents-status" class="result">Cargando grabaciones...</div>
+      <div id="recents-list" class="recording-list"></div>
+    </section>
+
+    <section class="card stack">
+      <div class="stack-tight">
+        <h2 class="section-heading">🔗 Por URL o identificador</h2>
+        <p class="subtitle">Acepta URL de watch, UUID base64, UUID estándar o manifest m3u8 directo.</p>
+      </div>
+      <div class="url-form">
+        <input id="custom-url" type="text" placeholder="https://grabaciones.parlamentodenavarra.es/watch?id=...">
+        <button id="custom-download" type="button">Descargar</button>
+      </div>
+      <div id="custom-status" class="result">Esperando URL...</div>
+    </section>
+
+    <p class="footer">
+      Solo funciona en Chrome, Edge u otros navegadores basados en Chromium. Las descargas se guardan en tu ordenador, no en servidores externos.
+    </p>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
