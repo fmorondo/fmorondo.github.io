@@ -32,6 +32,19 @@ class HLSDownloader {
       do {
         const mediaPlaylistUrl = await this.resolveMediaPlaylist(manifestUrl);
         const playlist = await this.fetchPlaylist(mediaPlaylistUrl);
+        if (this.live && this.seenSegments.size === 0) {
+          playlist.segments.forEach((segment) => this.seenSegments.add(segment.url));
+          onProgress?.({
+            bytes,
+            duration: 0,
+            segmentsTotal,
+            segmentsDone,
+            waitingForLiveSegments: true,
+          });
+          await sleep(4000, this.abortController.signal);
+          continue;
+        }
+
         const segments = playlist.segments.filter((segment) => !this.seenSegments.has(segment.url));
         segmentsTotal = this.live ? segmentsTotal + segments.length : playlist.segments.length;
 
@@ -447,6 +460,7 @@ async function requestWakeLock() {
 }
 
 function formatProgress(info) {
+  if (info.waitingForLiveSegments) return "Grabación iniciada. Esperando nuevos segmentos del directo...";
   const total = info.segmentsTotal ? ` / ${info.segmentsTotal}` : "";
   return `${formatBytes(info.bytes)} · ${formatTime(info.duration)} · segmentos ${info.segmentsDone}${total}`;
 }
