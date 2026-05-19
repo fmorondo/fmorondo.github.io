@@ -11,12 +11,54 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 type Status = 'idle' | 'loading' | 'processing' | 'downloading' | 'error';
 type Quality = 'high' | 'low';
 type ExportFormat = 'pdf' | 'jpg';
+type SelectionMode = 'visual' | 'range';
+
+const LARGE_PDF_PAGE_THRESHOLD = 100;
+
+const parsePageRange = (value: string, totalPages: number): { pages: Set<number>; error: string | null } => {
+    const pages = new Set<number>();
+    const normalizedValue = value.trim();
+
+    if (!normalizedValue) {
+        return { pages, error: 'Introduce un rango de páginas.' };
+    }
+
+    const parts = normalizedValue.split(',').map(part => part.trim()).filter(Boolean);
+
+    for (const part of parts) {
+        const match = part.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+
+        if (!match) {
+            return { pages, error: `El rango "${part}" no es válido. Usa formatos como 1-5, 8, 10-12.` };
+        }
+
+        const start = Number(match[1]);
+        const end = match[2] ? Number(match[2]) : start;
+
+        if (start < 1 || end < 1 || start > totalPages || end > totalPages) {
+            return { pages, error: `El rango "${part}" está fuera del PDF, que tiene ${totalPages} páginas.` };
+        }
+
+        if (start > end) {
+            return { pages, error: `El rango "${part}" debe ir de menor a mayor.` };
+        }
+
+        for (let page = start; page <= end; page++) {
+            pages.add(page - 1);
+        }
+    }
+
+    return { pages, error: null };
+};
 
 const App: React.FC = () => {
     const [pdfFile, setPdfFile] = useState<File | null>(null);
     const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
     const [previews, setPreviews] = useState<string[]>([]);
     const [selectedPages, setSelectedPages] = useState<Set<number>>(new Set());
+    const [selectionMode, setSelectionMode] = useState<SelectionMode>('visual');
+    const [pageRange, setPageRange] = useState('');
+    const [rangeError, setRangeError] = useState<string | null>(null);
     const [status, setStatus] = useState<Status>('idle');
     const [error, setError] = useState<string | null>(null);
     const [quality, setQuality] = useState<Quality>('high');
@@ -28,11 +70,39 @@ const App: React.FC = () => {
         setPdfDoc(null);
         setPreviews([]);
         setSelectedPages(new Set());
+        setSelectionMode('visual');
+        setPageRange('');
+        setRangeError(null);
         setStatus('idle');
         setError(null);
         if(fileInputRef.current) {
             fileInputRef.current.value = '';
         }
+    }, []);
+
+    const generatePreviews = useCallback(async (doc: pdfjsLib.PDFDocumentProxy) => {
+        setStatus('processing');
+        const previewPromises: Promise<string>[] = [];
+
+        for (let i = 1; i <= doc.numPages; i++) {
+            previewPromises.push(
+                doc.getPage(i).then(page => {
+                    const viewport = page.getViewport({ scale: 0.5 });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    if (context) {
+                        return page.render({ canvasContext: context, viewport }).promise.then(() => canvas.toDataURL('image/jpeg'));
+                    }
+                    return Promise.reject('No se pudo obtener el contexto del canvas');
+                })
+            );
+        }
+
+        const generatedPreviews = await Promise.all(previewPromises);
+        setPreviews(generatedPreviews);
+        setStatus('idle');
     }, []);
 
     useEffect(() => {
@@ -41,6 +111,7 @@ const App: React.FC = () => {
 
             setStatus('loading');
             setError(null);
+            setRangeError(null);
             setPreviews([]);
             setSelectedPages(new Set());
 
@@ -49,27 +120,15 @@ const App: React.FC = () => {
                 const loadingTask = pdfjsLib.getDocument(arrayBuffer);
                 const doc = await loadingTask.promise;
                 setPdfDoc(doc);
-                setStatus('processing');
-
-                const previewPromises: Promise<string>[] = [];
-                for (let i = 1; i <= doc.numPages; i++) {
-                    previewPromises.push(
-                        doc.getPage(i).then(page => {
-                            const viewport = page.getViewport({ scale: 0.5 });
-                            const canvas = document.createElement('canvas');
-                            const context = canvas.getContext('2d');
-                            canvas.height = viewport.height;
-                            canvas.width = viewport.width;
-                            if (context) {
-                                return page.render({ canvasContext: context, viewport }).promise.then(() => canvas.toDataURL('image/jpeg'));
-                            }
-                            return Promise.reject('No se pudo obtener el contexto del canvas');
-                        })
-                    );
+                if (doc.numPages > LARGE_PDF_PAGE_THRESHOLD) {
+                    setSelectionMode('range');
+                    setPageRange('');
+                    setRangeError('Introduce un rango de páginas.');
+                    setStatus('idle');
+                } else {
+                    setSelectionMode('visual');
+                    await generatePreviews(doc);
                 }
-                const generatedPreviews = await Promise.all(previewPromises);
-                setPreviews(generatedPreviews);
-                setStatus('idle');
             } catch (err) {
                 console.error(err);
                 setError('No se pudo cargar el archivo PDF. Asegúrate de que sea un archivo válido.');
@@ -79,7 +138,7 @@ const App: React.FC = () => {
         };
 
         loadPdf();
-    }, [pdfFile]);
+    }, [generatePreviews, pdfFile]);
 
     const handleFileChange = (files: FileList | null) => {
         if (files && files[0] && files[0].type === 'application/pdf') {
@@ -131,10 +190,54 @@ const App: React.FC = () => {
         if (!pdfDoc) return;
         const allPages = new Set(Array.from({ length: pdfDoc.numPages }, (_, i) => i));
         setSelectedPages(allPages);
+        if (selectionMode === 'range') {
+            setPageRange(`1-${pdfDoc.numPages}`);
+            setRangeError(null);
+        }
     };
 
     const handleDeselectAll = () => {
         setSelectedPages(new Set());
+        if (selectionMode === 'range') {
+            setPageRange('');
+            setRangeError(null);
+        }
+    };
+
+    const handleRangeChange = (value: string) => {
+        setPageRange(value);
+
+        if (!pdfDoc) return;
+
+        const result = parsePageRange(value, pdfDoc.numPages);
+        setSelectedPages(result.pages);
+        setRangeError(result.error);
+    };
+
+    const handleModeChange = async (mode: SelectionMode) => {
+        if (!pdfDoc || mode === selectionMode) return;
+
+        setSelectionMode(mode);
+        setError(null);
+
+        if (mode === 'range') {
+            const range = selectedPages.size > 0
+                ? Array.from(selectedPages).sort((a, b) => a - b).map(page => String(page + 1)).join(', ')
+                : '';
+            setPageRange(range);
+            setRangeError(range ? null : 'Introduce un rango de páginas.');
+            return;
+        }
+
+        if (previews.length === 0) {
+            try {
+                await generatePreviews(pdfDoc);
+            } catch (err) {
+                console.error(err);
+                setError('No se pudieron generar las miniaturas. Usa el modo por rango para exportar páginas.');
+                setStatus('error');
+            }
+        }
     };
 
     const handleDownloadPDF = async () => {
@@ -164,6 +267,7 @@ const App: React.FC = () => {
             console.error(err);
             setError('Ocurrió un error durante la exportación. Por favor, inténtalo de nuevo.');
             setStatus('error');
+            throw err;
         }
     };
 
@@ -216,22 +320,26 @@ const App: React.FC = () => {
             console.error(err);
             setError('Ocurrió un error durante la descarga. Por favor, inténtalo de nuevo.');
             setStatus('error');
+            throw err;
         }
     };
 
     const handleDownload = async () => {
-        if (!pdfDoc || selectedPages.size === 0) return;
+        if (!pdfDoc || selectedPages.size === 0 || rangeError) return;
 
         setStatus('downloading');
         setError(null);
+        let failed = false;
         try {
             if (exportFormat === 'pdf') {
                 await handleDownloadPDF();
             } else {
                 await handleDownloadJPG();
             }
+        } catch (err) {
+            failed = true;
         } finally {
-            if (status !== 'error') {
+            if (!failed) {
                 setStatus('idle');
             }
         }
@@ -247,7 +355,38 @@ const App: React.FC = () => {
             );
         }
 
-        if (previews.length > 0) {
+        if (selectionMode === 'range' && pdfDoc) {
+            return (
+                <div className="flex items-start justify-center h-full p-4 sm:p-6 lg:p-8">
+                    <div className="w-full max-w-3xl rounded-lg border border-slate-700 bg-slate-800 p-5 sm:p-6 shadow-lg">
+                        <label htmlFor="page-range" className="block text-sm font-semibold text-slate-200">
+                            Rango de páginas
+                        </label>
+                        <input
+                            id="page-range"
+                            type="text"
+                            value={pageRange}
+                            onChange={(e) => handleRangeChange(e.target.value)}
+                            placeholder="1-5, 8, 10-12"
+                            className="mt-2 w-full rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-slate-100 placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
+                        />
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
+                            <p className={rangeError ? 'text-red-300' : 'text-slate-400'}>
+                                {rangeError || `${selectedPages.size} páginas seleccionadas de ${pdfDoc.numPages}.`}
+                            </p>
+                            <button
+                                onClick={handleSelectAll}
+                                className="px-3 py-1.5 text-sm bg-slate-700 rounded-md hover:bg-slate-600 transition-colors"
+                            >
+                                Usar todo el documento
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        if (selectionMode === 'visual' && previews.length > 0) {
             return (
                 <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
                     {previews.map((src, index) => (
@@ -330,6 +469,27 @@ const App: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-x-4 gap-y-2 flex-wrap justify-end">
                             <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-slate-300">Selección:</span>
+                                <div role="radiogroup" className="flex items-center rounded-md bg-slate-700 p-0.5">
+                                    <button
+                                        role="radio"
+                                        aria-checked={selectionMode === 'visual'}
+                                        onClick={() => handleModeChange('visual')}
+                                        className={`px-3 py-1 text-sm rounded-md transition-colors ${selectionMode === 'visual' ? 'bg-sky-600 text-white shadow' : 'text-slate-300 hover:bg-slate-600/50'}`}
+                                    >
+                                        Vista
+                                    </button>
+                                    <button
+                                        role="radio"
+                                        aria-checked={selectionMode === 'range'}
+                                        onClick={() => handleModeChange('range')}
+                                        className={`px-3 py-1 text-sm rounded-md transition-colors ${selectionMode === 'range' ? 'bg-sky-600 text-white shadow' : 'text-slate-300 hover:bg-slate-600/50'}`}
+                                    >
+                                        Rango
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
                                 <button onClick={handleSelectAll} className="px-3 py-1.5 text-sm bg-slate-700 rounded-md hover:bg-slate-600 transition-colors">Seleccionar todo</button>
                                 <button onClick={handleDeselectAll} className="px-3 py-1.5 text-sm bg-slate-700 rounded-md hover:bg-slate-600 transition-colors">Deseleccionar todo</button>
                             </div>
@@ -377,7 +537,7 @@ const App: React.FC = () => {
                             </div>
                             <button
                                 onClick={handleDownload}
-                                disabled={selectedPages.size === 0 || status === 'downloading'}
+                                disabled={selectedPages.size === 0 || !!rangeError || status === 'downloading'}
                                 className="px-4 py-1.5 text-sm font-semibold bg-sky-600 text-white rounded-md hover:bg-sky-500 transition-all disabled:bg-slate-600 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                                 {status === 'downloading' && <SpinnerIcon className="w-4 h-4 animate-spin" />}
