@@ -68,6 +68,7 @@ export default function App() {
                                 viewMode={viewMode}
                                 onRemove={removeFile}
                                 onReorder={reorderFiles}
+                                onFileChange={handleFileChange}
                                 isProcessing={isProcessing}
                             />
                         )}

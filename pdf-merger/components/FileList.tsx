@@ -2,16 +2,18 @@
 import React, { useState, useRef } from 'react';
 import { PdfFile, ViewMode } from '../types';
 import { FilePreview } from './FilePreview';
+import { FileUpload } from './FileUpload';
 
 interface FileListProps {
     files: PdfFile[];
     viewMode: ViewMode;
     onRemove: (id: string) => void;
     onReorder: (startIndex: number, endIndex: number) => void;
+    onFileChange: (files: FileList | null) => void;
     isProcessing: number;
 }
 
-export const FileList: React.FC<FileListProps> = ({ files, viewMode, onRemove, onReorder, isProcessing }) => {
+export const FileList: React.FC<FileListProps> = ({ files, viewMode, onRemove, onReorder, onFileChange, isProcessing }) => {
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const dropTargetRef = useRef<HTMLDivElement | null>(null);
 
@@ -76,9 +78,12 @@ export const FileList: React.FC<FileListProps> = ({ files, viewMode, onRemove, o
                     />
                 </div>
             ))}
+            <div className={viewMode === 'grid' ? 'min-h-44' : 'min-h-24'}>
+                <FileUpload onFileChange={onFileChange} variant="inline" />
+            </div>
             {files.length > 0 && isProcessing === 0 && (
                  <div className="text-center text-gray-500 col-span-full mt-4">
-                    <p>Arrastra los archivos para reordenarlos.</p>
+                    <p>Arrastra los archivos para reordenarlos o añade más PDF cuando los necesites.</p>
                 </div>
             )}
         </div>

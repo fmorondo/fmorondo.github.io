@@ -7,6 +7,10 @@ import { PdfFile } from '../types';
 // Set worker source for pdfjs
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@4.0.379/build/pdf.worker.mjs';
 
+const createFileId = () => {
+    return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
+
 export const usePdfManager = () => {
     const [files, setFiles] = useState<PdfFile[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -41,7 +45,7 @@ export const usePdfManager = () => {
         setIsProcessing(prev => prev + pdfFiles.length);
 
         const newPdfFileObjects: PdfFile[] = pdfFiles.map(file => ({
-            id: `${file.name}-${Date.now()}`,
+            id: createFileId(),
             file,
             name: file.name,
             thumbnailUrl: null,
