@@ -6,12 +6,16 @@ import JSZip from 'jszip';
 import { UploadIcon, CheckCircleIcon, SpinnerIcon, PdfFileIcon, XMarkIcon } from './components/Icons';
 
 // Set up the PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url
+).toString();
 
 type Status = 'idle' | 'loading' | 'processing' | 'downloading' | 'error';
 type Quality = 'high' | 'low';
 type ExportFormat = 'pdf' | 'jpg';
 type SelectionMode = 'visual' | 'range';
+type ExportProgress = { current: number; total: number; label: string } | null;
 
 const LARGE_PDF_PAGE_THRESHOLD = 100;
 
@@ -63,6 +67,7 @@ const App: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [quality, setQuality] = useState<Quality>('high');
     const [exportFormat, setExportFormat] = useState<ExportFormat>('pdf');
+    const [exportProgress, setExportProgress] = useState<ExportProgress>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const resetState = useCallback(() => {
@@ -75,6 +80,7 @@ const App: React.FC = () => {
         setRangeError(null);
         setStatus('idle');
         setError(null);
+        setExportProgress(null);
         if(fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -278,37 +284,54 @@ const App: React.FC = () => {
             const zip = new JSZip();
             const scale = quality === 'high' ? 2.0 : 1.0;
             const jpegQuality = quality === 'high' ? 0.92 : 0.75;
+            const pageIndices = Array.from(selectedPages).sort((a, b) => a - b);
+            const total = pageIndices.length;
 
-            const pagePromises = Array.from(selectedPages).map(pageIndex => {
-                return new Promise<void>(async (resolve, reject) => {
-                    try {
-                        const page = await pdfDoc.getPage(pageIndex + 1);
-                        const viewport = page.getViewport({ scale });
-                        const canvas = document.createElement('canvas');
-                        const context = canvas.getContext('2d');
-                        canvas.height = viewport.height;
-                        canvas.width = viewport.width;
+            for (let i = 0; i < total; i++) {
+                const pageIndex = pageIndices[i];
+                setExportProgress({ current: i + 1, total, label: `Renderizando página ${pageIndex + 1}` });
 
-                        if (!context) return reject(new Error('No se pudo obtener el contexto del canvas'));
+                const page = await pdfDoc.getPage(pageIndex + 1);
+                const viewport = page.getViewport({ scale });
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
 
-                        await page.render({ canvasContext: context, viewport }).promise;
-                        canvas.toBlob(blob => {
-                            if (blob) {
-                                zip.file(`pagina_${pageIndex + 1}.jpg`, blob);
-                                resolve();
-                            } else {
-                                reject(new Error(`No se pudo crear el blob para la página ${pageIndex + 1}`));
-                            }
-                        }, 'image/jpeg', jpegQuality);
-                    } catch (e) {
-                        reject(e);
-                    }
+                if (!context) {
+                    throw new Error('No se pudo obtener el contexto del canvas');
+                }
+
+                await page.render({ canvasContext: context, viewport }).promise;
+                const blob = await new Promise<Blob>((resolve, reject) => {
+                    canvas.toBlob(result => {
+                        if (result) {
+                            resolve(result);
+                        } else {
+                            reject(new Error(`No se pudo crear el blob para la página ${pageIndex + 1}`));
+                        }
+                    }, 'image/jpeg', jpegQuality);
                 });
-            });
 
-            await Promise.all(pagePromises);
+                zip.file(`pagina_${pageIndex + 1}.jpg`, blob);
+                canvas.width = 0;
+                canvas.height = 0;
+            }
 
-            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            setExportProgress({ current: total, total, label: 'Generando ZIP' });
+            const zipBlob = await zip.generateAsync(
+                { type: 'blob' },
+                metadata => {
+                    if (metadata.percent) {
+                        setExportProgress({
+                            current: total,
+                            total,
+                            label: `Comprimiendo ${Math.round(metadata.percent)}%`
+                        });
+                    }
+                }
+            );
+
             const link = document.createElement('a');
             link.href = URL.createObjectURL(zipBlob);
             link.download = `${pdfFile.name.replace('.pdf', '')}_paginas.zip` || 'paginas.zip';
@@ -329,6 +352,7 @@ const App: React.FC = () => {
 
         setStatus('downloading');
         setError(null);
+        setExportProgress(exportFormat === 'jpg' ? { current: 0, total: selectedPages.size, label: 'Preparando exportación' } : null);
         let failed = false;
         try {
             if (exportFormat === 'pdf') {
@@ -341,8 +365,21 @@ const App: React.FC = () => {
         } finally {
             if (!failed) {
                 setStatus('idle');
+                setExportProgress(null);
             }
         }
+    };
+
+    const getDownloadButtonLabel = () => {
+        if (status !== 'downloading') {
+            return `Exportar ${exportFormat.toUpperCase()} (${selectedPages.size})`;
+        }
+
+        if (exportFormat === 'jpg' && exportProgress) {
+            return `${exportProgress.label} (${exportProgress.current}/${exportProgress.total})`;
+        }
+
+        return 'Exportando...';
     };
 
     const renderContent = () => {
@@ -541,9 +578,14 @@ const App: React.FC = () => {
                                 className="px-4 py-1.5 text-sm font-semibold bg-sky-600 text-white rounded-md hover:bg-sky-500 transition-all disabled:bg-slate-600 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                                 {status === 'downloading' && <SpinnerIcon className="w-4 h-4 animate-spin" />}
-                                {status === 'downloading' ? 'Exportando...' : `Exportar ${exportFormat.toUpperCase()} (${selectedPages.size})`}
+                                {getDownloadButtonLabel()}
                             </button>
                         </div>
+                        {status === 'downloading' && exportProgress && (
+                            <p aria-live="polite" className="w-full text-right text-sm text-slate-400">
+                                {exportProgress.label}: {exportProgress.current} de {exportProgress.total}
+                            </p>
+                        )}
                     </div>
                 </div>
             )}

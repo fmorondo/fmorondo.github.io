@@ -19,7 +19,7 @@
   - calidad `baja` o `alta`
 7. El frontend exporta:
   - PDF parcial con `pdf-lib`
-  - ZIP de JPGs con `JSZip`
+  - ZIP de JPGs con `JSZip`, mostrando progreso durante la exportacion
 
 ## Implementacion
 
@@ -49,14 +49,15 @@
 
 ## Detalles tecnicos
 
-- Worker PDF.js servido desde CDNJS.
+- Worker PDF.js servido como asset local generado por Vite, sin dependencia de CDN externo.
 - Umbral de PDF extenso: mas de 100 paginas.
 - Sintaxis de rango: paginas sueltas y rangos separados por coma, por ejemplo `1-5, 8, 10-12`.
 - Calidad alta JPG: escala `2.0`, calidad `0.92`
 - Calidad baja JPG: escala `1.0`, calidad `0.75`
+- Exportacion JPG: procesa las paginas seleccionadas de forma secuencial para reducir picos de memoria.
 - El footer menciona React, Tailwind CSS y Gemini; es una nota de UI, no una dependencia ejecutada en runtime.
 
 ## Riesgos y limites
 
 - En modo visual genera las miniaturas por adelantado; por eso los PDFs de mas de 100 paginas pasan automaticamente al modo por rango.
-- La exportacion JPG de muchas paginas sigue siendo costosa porque renderiza las paginas seleccionadas y genera el ZIP en el navegador.
+- La exportacion JPG de muchas paginas sigue siendo costosa porque renderiza las paginas seleccionadas y genera el ZIP en el navegador, aunque ahora evita lanzar todos los renderizados en paralelo.
