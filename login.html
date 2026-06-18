@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - Sistema de Autenticación</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; }
+        .login-container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        input { display: block; width: 100%; margin-bottom: 1rem; padding: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #007bff; color: white; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="login-container">
+    <h2>Iniciar Sesión</h2>
+    <input type="text" id="username" placeholder="Usuario">
+    <input type="password" id="password" placeholder="Contraseña">
+    <button onclick="handleLogin()">Entrar</button>
+    <p id="message" style="color: red;"></p>
+</div>
+
+<script>
+    async function handleLogin() {
+        const user = document.getElementById('username').value;
+        const pass = document.getElementById('password').value;
+        const msg = document.getElementById('message');
+
+        // URL del endpoint externo (reemplaza con la URL real de tu servidor PHP)
+        const ENDPOINT_URL = 'https://its.diariodenavarra.es/fmorondo/login.php';
+
+        try {
+            const response = await fetch(ENDPOINT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user, password: pass })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // 1. Crear la cookie de autenticación (válida por 1 día)
+                document.cookie = "session_token=authenticated_user; max-age=" + (24*60*60) + "; path=/";
+
+                // 2. Lógica de redirección basada en Referrer
+                const referrer = document.referrer;
+                if (referrer && referrer !== "" && !referrer.includes('login.html')) {
+                    window.location.href = referrer;
+                } else {
+                    window.location.href = 'index.html';
+                }
+            } else {
+                msg.textContent = "Credenciales incorrectas.";
+            }
+        } catch (error) {
+            msg.textContent = "Error de conexión con el servidor.";
+            console.error(error);
+        }
+    }
+</script>
+
+</body>
+</html>
