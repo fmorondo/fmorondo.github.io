@@ -334,7 +334,7 @@
                     progreso.textContent += '\n✅ ZIP disponible. Intentando descarga automática y dejando botón manual por si el navegador la bloquea.';
                     botonDescargar.classList.remove('hidden');
                     botonReintentar.classList.remove('hidden');
-                    intentarDescargaAutomatica();
+                    intentarDescargaAutomatica(0, 1);
                     bloquearUI(false);
                     return;
                   }
