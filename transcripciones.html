@@ -43,7 +43,7 @@
       </details>
 
       <label for="archivo">Selecciona un archivo de audio (menos de media hora):</label>
-      <input type="file" id="archivo" accept="audio/*" />
+      <input type="file" id="archivo" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.opus,.flac,.amr,.3gp,.wma" />
 
       <!-- NUEVO: Controles de idioma y prompt -->
       <div class="row">
@@ -103,6 +103,20 @@
     let ultimaLineaSSE = '';
     let etapaActual = '';
     let intervaloPulsoCorreccion = null;
+
+    archivoInput.addEventListener('change', () => {
+      const f = archivoInput.files[0];
+      if (!f) {
+        progreso.textContent = 'Esperando archivo...';
+        return;
+      }
+      if (f.size === 0) {
+        progreso.textContent = `⚠️ "${f.name}" parece vacío o no se ha descargado del todo (0 bytes). Si está en la nube (iCloud/Drive/WhatsApp), ábrelo primero para descargarlo por completo y vuelve a seleccionarlo.`;
+        return;
+      }
+      const tamañoMB = (f.size / (1024 * 1024)).toFixed(1);
+      progreso.textContent = `📄 Archivo seleccionado: ${f.name} (${tamañoMB} MB)\nPulsa "Subir el archivo y procesarlo" para continuar.`;
+    });
 
     function bloquearUI(b) {
       subirBtn.disabled = b;
