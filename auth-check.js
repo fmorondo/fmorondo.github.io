@@ -9,7 +9,9 @@
 
     // Comprobar si existe la cookie 'session_token'
     if (getCookie('session_token') !== 'authenticated_user') {
-        // Si no existe, redirigir al login
-        window.location.href = 'login.html';
+        // Ruta absoluta: este script se incluye también desde subcarpetas
+        // (descarga-parlamento/, pdf-merger/, pdf-to-jpg/), donde una ruta
+        // relativa apuntaría a un login.html inexistente ahí dentro.
+        window.location.href = '/login.html';
     }
 })();

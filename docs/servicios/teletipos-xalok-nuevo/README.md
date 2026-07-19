@@ -3,30 +3,27 @@
 ## Resumen
 
 - Entrada: `teletiposxaloknuevo.html`
-- Tipo: utilidad HTML estatico 100% cliente
-- Funcion: misma conversion a pegado compatible con Xalok que la version clasica
-- Procesamiento: local
+- Tipo: redirect estático
+- Función: mantener viva la URL para quien la tuviera guardada, sin duplicar lógica
 
 ## Estado actual
 
-El codigo de esta pagina es, en la practica, equivalente al de `teletipoxalok.html`. Cambian el titulo y el nombre comercial mostrado en la UI, pero la implementacion y el flujo son los mismos.
+Esta página era, en la práctica, una copia completa de `teletipoxalok.html`
+(mismo script, mismo flujo; solo cambiaban el título y el `<h1>`). Además no
+estaba enlazada desde ningún portal (`redaccion.html` ni
+`herramientaskoldo.html`) — solo era alcanzable pegando la URL directamente.
 
-## Flujo funcional
+Se ha sustituido por un redirect (`<meta http-equiv="refresh">` +
+`rel="canonical"`) hacia `teletipoxalok.html`, que es ahora la única
+implementación real. Ver
+[Teletipos a Xalok](../teletipos-xalok/README.md) para el flujo funcional
+completo.
 
-- Normalizacion de texto y HTML pegado
-- Reconstruccion de parrafos
-- Generacion de `text/plain` y `text/html`
-- Copia automatica al portapapeles con fallback
+## Implementación
 
-## Implementacion
+- `teletiposxaloknuevo.html` (solo redirect, sin `auth-check.js` ni lógica propia)
 
-- `teletiposxaloknuevo.html`
-- `styles.css`
+## Riesgos y límites
 
-## Recomendacion de mantenimiento
-
-Si ambas paginas deben seguir conviviendo, conviene parametrizar una sola implementacion para evitar divergencias invisibles. A dia de hoy mantener dos copias completas del mismo script encarece cualquier cambio.
-
-## Riesgos y limites
-
-- Mismos que la version clasica: dependencia del portapapeles y ausencia de formateo editorial adicional.
+- Si alguna vez se quiere retirar del todo, se puede eliminar el archivo sin
+  más pasos: no hay enlaces internos que dependan de él.

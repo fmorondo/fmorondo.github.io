@@ -26,7 +26,7 @@
 - `pdf-to-jpg/App.tsx`
 - `pdf-to-jpg/components/Icons.tsx`
 - `pdf-to-jpg/index.tsx`
-- `pdf-to-jpg/index.source.html`
+- `pdf-to-jpg/index.source.html` (incluye `/auth-check.js` — antes faltaba, a diferencia del resto de servicios del portal)
 - `pdf-to-jpg/package.json`
 - `pdf-to-jpg/vite.config.ts`
 

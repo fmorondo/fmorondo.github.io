@@ -22,7 +22,7 @@
 
 ## Implementacion
 
-- `descarga-parlamento/index.html`
+- `descarga-parlamento/index.html` (incluye `/auth-check.js` — antes faltaba, a diferencia del resto de servicios del portal)
 - `descarga-parlamento/app.js`
 - `styles.css`
 - Libreria CDN: `hls.js`

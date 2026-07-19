@@ -25,6 +25,7 @@
 - `pdf-merger/components/*`
 - `pdf-merger/types.ts`
 - `pdf-merger/vite.config.ts`
+- `pdf-merger/index.source.html` (fuente del `<head>`; incluye `/auth-check.js` — antes faltaba, a diferencia del resto de servicios del portal)
 
 ## Dependencias
 
