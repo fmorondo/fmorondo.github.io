@@ -30,6 +30,16 @@ Si el servicio nuevo va a vivir en este repo y ser enlazado desde
 como contenedor Docker en la Raspberry Pi sin URL pública, usa
 `panel-de-servicios-design`.
 
+## Paso 0 — decidir dónde vive el procesamiento
+
+Antes de tocar HTML/CSS, decide la arquitectura del servicio nuevo con el
+criterio de [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md): navegador primero
+(este skill aplica tal cual); si no basta, Cloud Run sin OpenAI solo para
+tareas mecánicas de extracción/descarga; OpenAI dentro de ese Cloud Run solo
+si la tarea requiere lenguaje/embeddings genuinos. No despliegues backend ni
+uses OpenAI porque sí — cada nivel se justifica solo si el anterior no
+alcanza.
+
 ## Cómo crear una página nueva
 
 1. Copia el esqueleto de `comillas.html` (herramienta simple de

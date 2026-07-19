@@ -54,6 +54,11 @@ Repositorio de frontends estaticos para utilidades internas de Diario de Navarra
 
 ## Arquitectura del repositorio
 
+Antes de crear un servicio nuevo, ver el criterio de decisión en
+[docs/ARQUITECTURA.md](docs/ARQUITECTURA.md): navegador primero, Cloud Run
+solo si hace falta, y OpenAI dentro de ese Cloud Run solo si la tarea
+requiere lenguaje/embeddings.
+
 - HTML estatico en raiz:
   - Cada pagina tiene su propio script inline o un JS dedicado.
   - La publicacion es trivial: copiar archivos a hosting estatico.
