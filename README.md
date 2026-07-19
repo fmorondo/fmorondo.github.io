@@ -31,6 +31,8 @@ Repositorio de frontends estaticos para utilidades internas de Diario de Navarra
 - [Transcripciones](docs/servicios/transcripciones/README.md)
 - [Transcripciones parser2](docs/servicios/transcripciones-parser2/README.md)
 - [Descargar audio](docs/servicios/descargar-audio/README.md)
+- [Descargar video](docs/servicios/descargar-video/README.md)
+- [Descarga Parlamento de Navarra](docs/servicios/descarga-parlamento/README.md)
 
 ### Edicion y publicacion
 
