@@ -31,7 +31,7 @@
 - Tiene drag and drop.
 - Muestra nombre y tamano del archivo.
 - Incluye boton para copiar la respuesta JSON.
-- La barra de progreso es aproximada, no esta ligada a bytes reales.
+- La subida usa `XMLHttpRequest` (no `fetch`, que no expone progreso de subida) y `xhr.upload.onprogress` para mapear el envio real de bytes a 0-90%. El tramo 90-100% sigue siendo un valor fijo: cubre el procesamiento del CSV en el servidor, del que no hay progreso real posible sin cambiar el backend.
 
 ## Riesgos y limites
 

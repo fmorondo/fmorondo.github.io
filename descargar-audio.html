@@ -110,11 +110,45 @@
       limpiarBtn.disabled = isLoading;
       downloadButton.textContent = isLoading ? 'Procesando…' : '📥 Descargar audio';
       progressContainer.style.display = isLoading ? 'block' : 'none';
-      progressBar.style.width = isLoading ? '50%' : '0%';
+      progressBar.style.width = '0%';
       // Ocultamos momentáneamente el mensaje mientras procesamos
       if (isLoading) {
         statusMessage.style.display = 'none';
       }
+    }
+
+    function setProgress(percent) {
+      progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+    }
+
+    // Lee la respuesta trozo a trozo para poder mostrar progreso real de
+    // descarga en vez de saltar directamente de 0% a 100%. Si el backend no
+    // manda Content-Length (p. ej. respuesta con chunked encoding), no hay
+    // total conocido y el progreso se queda indeterminado hasta el final.
+    async function readBlobWithProgress(response) {
+      const totalStr = response.headers.get('Content-Length');
+      const total = totalStr ? Number(totalStr) : 0;
+
+      if (!response.body || !response.body.getReader) {
+        // Navegador sin soporte de streams: sin progreso real, pero funciona.
+        return response.blob();
+      }
+
+      const reader = response.body.getReader();
+      const chunks = [];
+      let received = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        if (total) {
+          setProgress(Math.round((received / total) * 100));
+        }
+      }
+
+      return new Blob(chunks);
     }
 
     limpiarBtn.addEventListener('click', () => {
@@ -160,7 +194,7 @@
         }
 
         // Si la respuesta es exitosa (código 200), el servidor devuelve el archivo (blob)
-        const blob = await response.blob();
+        const blob = await readBlobWithProgress(response);
 
         // Obtener el nombre del archivo de la cabecera Content-Disposition
         const contentDisposition = response.headers.get('Content-Disposition');
@@ -182,7 +216,7 @@
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
 
-        progressBar.style.width = '100%';
+        setProgress(100);
         showMessage(`✅ Descarga iniciada con éxito. Archivo: ${filename}`);
 
       } catch (error) {

@@ -32,6 +32,7 @@
 - La descarga queda bloqueada hasta que hay `validation_token` **y** la casilla de aprobacion manual esta marcada.
 - El error 504 en la descarga se interpreta como timeout por video pesado o plataforma sin respuesta.
 - La validacion es orientativa: la UI advierte explicitamente que la API no confirma derechos de uso ni licencias.
+- El progreso de `/download` es real (lee la respuesta por streaming contra `Content-Length`). El de `/validate` sigue siendo un valor fijo (45% mientras espera, 100% al terminar): es una unica peticion/respuesta JSON sin bytes que trocear, asi que no hay progreso real posible sin instrumentar el backend.
 
 ## Riesgos y limites
 

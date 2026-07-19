@@ -155,24 +155,47 @@
       formData.append('file', file, file.name);
       formData.append('vector_store_id', vectorStoreId);
 
-      submitBtn.disabled = true; setStatus('Subiendo…'); setProgress(12);
+      submitBtn.disabled = true; setStatus('Subiendo…'); setProgress(0);
 
       try {
-        const res = await fetch(ENDPOINT, { method: 'POST', body: formData });
-        setProgress(55);
-        const text = await res.text();
+        const { status, text } = await uploadWithProgress(ENDPOINT, formData);
         let data; try { data = JSON.parse(text); } catch { data = { raw: text, note: 'Respuesta no-JSON recibida del servidor' }; }
-        setProgress(88);
         responseEl.textContent = JSON.stringify(data, null, 2);
-        setStatus(res.ok ? 'Procesado correctamente.' : `Error ${res.status}: consulta el panel inferior.`);
+        setStatus(status >= 200 && status < 300 ? 'Procesado correctamente.' : `Error ${status}: consulta el panel inferior.`);
       } catch (error) {
         responseEl.textContent = `Error al conectar con el servicio: ${error}`;
         setStatus('Error de red. Reintenta en unos segundos.');
       } finally {
-        setProgress(100);
         submitBtn.disabled = false;
       }
     });
+
+    // fetch no expone progreso de subida; XMLHttpRequest sí, vía
+    // xhr.upload.onprogress (bytes ya enviados por el navegador, sin
+    // necesidad de que el backend colabore). El tramo de subida se mapea a
+    // 0-90% y el 90-100% final cubre el procesamiento del CSV en el
+    // servidor, del que no hay progreso real posible sin cambiar el backend.
+    function uploadWithProgress(url, formData) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url);
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            setProgress(Math.round((event.loaded / event.total) * 90));
+          }
+        };
+        xhr.upload.onload = () => setProgress(90);
+
+        xhr.onload = () => {
+          setProgress(100);
+          resolve({ status: xhr.status, text: xhr.responseText });
+        };
+        xhr.onerror = () => reject(new Error('Fallo de red con el servicio de Cloud Run.'));
+
+        xhr.send(formData);
+      });
+    }
   </script>
 </body>
 </html>

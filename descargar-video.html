@@ -153,6 +153,35 @@
       progressBar.style.width = `${percent}%`;
     }
 
+    // Lee la respuesta de /download trozo a trozo para mostrar progreso real
+    // de descarga en vez de saltar directamente a 100%. Si el backend no
+    // manda Content-Length, no hay total conocido y la barra se queda fija
+    // hasta que termine (igual que antes).
+    async function readBlobWithProgress(response) {
+      const totalStr = response.headers.get('Content-Length');
+      const total = totalStr ? Number(totalStr) : 0;
+
+      if (!response.body || !response.body.getReader) {
+        return response.blob();
+      }
+
+      const reader = response.body.getReader();
+      const chunks = [];
+      let received = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        if (total) {
+          setProgress(Math.round((received / total) * 100), true);
+        }
+      }
+
+      return new Blob(chunks);
+    }
+
     function updateDownloadState() {
       downloadButton.disabled = isLoading || !validationToken || !approvalCheckbox.checked;
     }
@@ -299,7 +328,7 @@
           throw new Error(errorMessage);
         }
 
-        const blob = await response.blob();
+        const blob = await readBlobWithProgress(response);
         const contentDisposition = response.headers.get('Content-Disposition');
         let filename = 'video_descargado.mp4';
         if (contentDisposition) {

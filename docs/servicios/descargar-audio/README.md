@@ -27,7 +27,7 @@
 
 ## Consideraciones operativas
 
-- El progreso visual es ficticio: la barra pasa del 50% al 100%, no representa avance real.
+- El progreso visual es real: lee la respuesta con `response.body.getReader()` y calcula el porcentaje contra el header `Content-Length`. Si el backend no lo envía (p. ej. respuesta chunked), la barra se queda sin avanzar hasta el final — no hay fallback intermedio.
 - La UI incluye una nota manual sobre problemas con YouTube en noviembre de 2025.
 - El error 504 se interpreta como timeout y se muestra con un mensaje amigable.
 
