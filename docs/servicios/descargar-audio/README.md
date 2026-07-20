@@ -28,7 +28,7 @@
 ## Consideraciones operativas
 
 - El progreso visual es real: lee la respuesta con `response.body.getReader()` y calcula el porcentaje contra el header `Content-Length`. Si el backend no lo envía (p. ej. respuesta chunked), la barra se queda sin avanzar hasta el final — no hay fallback intermedio.
-- La UI incluye una nota manual sobre problemas con YouTube en noviembre de 2025.
+- La UI avisa de que YouTube cambia con frecuencia su servicio para dificultar o impedir la descarga de audio, asi que alguna descarga puntual puede fallar aunque el enlace sea correcto. El backend usa cookies de una cuenta de YouTube (montadas via Secret Manager) y un runtime de JavaScript (Deno + yt-dlp-ejs) para sortear el bloqueo de YouTube; ver `audio-downloader-service`.
 - El error 504 se interpreta como timeout y se muestra con un mensaje amigable.
 
 ## Riesgos y limites
