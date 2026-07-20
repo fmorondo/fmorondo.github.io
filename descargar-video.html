@@ -7,7 +7,7 @@
   <title>Descarga de vídeo · Diario de Navarra</title>
   <meta
     name="description"
-    content="Valida publicaciones de X, Instagram o TikTok y descarga el vídeo MP4 tras aprobación manual."
+    content="Descarga el vídeo MP4 de publicaciones de X, Instagram o TikTok."
   />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -32,9 +32,9 @@
   <main>
     <section class="card stack" aria-labelledby="titulo">
       <div class="stack" style="gap:6px">
-        <h1 id="titulo" class="title">🎬 Descarga de vídeo con validación manual</h1>
+        <h1 id="titulo" class="title">🎬 Descarga de vídeo</h1>
         <p class="subtitle">
-          Pega la URL de una publicación de X, Instagram o TikTok. El servicio valida la publicación, estima si parece una cuenta institucional y solo descarga el MP4 cuando confirmas la aprobación manual.
+          Pega la URL de una publicación de X, Instagram o TikTok y descarga el vídeo en MP4.
         </p>
       </div>
 
@@ -43,9 +43,8 @@
         <div class="panel">
           <ul>
             <li>Pega la URL completa de una publicación individual.</li>
-            <li>Pulsa en <strong>Validar publicación</strong> y espera a que termine el análisis.</li>
-            <li>Revisa la cuenta, la URL normalizada, la confianza y los motivos.</li>
-            <li>Marca la aprobación manual y pulsa en <strong>Descargar MP4</strong>.</li>
+            <li>Pulsa en <strong>Descargar MP4</strong> y espera a que termine el proceso.</li>
+            <li>Cuando esté listo, el navegador iniciará la descarga automáticamente.</li>
           </ul>
         </div>
       </details>
@@ -61,8 +60,7 @@
       </div>
 
       <div class="row">
-        <button id="validate-button" type="button">🔎 Validar publicación</button>
-        <button id="download-button" type="button" disabled>📥 Descargar MP4</button>
+        <button id="download-button" type="button">📥 Descargar MP4</button>
         <button id="limpiar" class="btn-secondary" type="button">Limpiar campo</button>
       </div>
 
@@ -75,35 +73,8 @@
         </div>
 
         <p class="footer">
-          La validación es orientativa. La API no confirma derechos de uso ni licencias.
+          La API no confirma derechos de uso ni licencias del contenido descargado.
         </p>
-      </div>
-
-      <div id="validation-block" class="stack hidden">
-        <div class="row">
-          <span id="platform-badge" class="badge">Plataforma</span>
-          <span id="signal-badge" class="badge">Señal</span>
-          <span id="confidence-badge" class="badge">Confianza</span>
-        </div>
-
-        <div class="panel">
-          <div class="stack-tight">
-            <div><strong>URL normalizada:</strong> <span id="normalized-url">-</span></div>
-            <div><strong>Post ID:</strong> <span id="post-id">-</span></div>
-            <div><strong>Cuenta:</strong> <span id="account-handle">-</span></div>
-            <div><strong>Título:</strong> <span id="title-value">-</span></div>
-          </div>
-        </div>
-
-        <div class="info">
-          <strong>Motivos de la validación</strong>
-          <ul id="reasons-list"></ul>
-        </div>
-
-        <label class="row" style="align-items:flex-start;">
-          <input id="approval-checkbox" type="checkbox" style="margin-top:2px;">
-          <span>He revisado manualmente la validación y autorizo la descarga del MP4.</span>
-        </label>
       </div>
     </section>
 
@@ -120,17 +91,13 @@
     const CLOUD_RUN_BASE = "https://descargavideos-811896322472.europe-west1.run.app";
 
     const urlInput = document.getElementById('video-url');
-    const validateButton = document.getElementById('validate-button');
     const downloadButton = document.getElementById('download-button');
     const limpiarBtn = document.getElementById('limpiar');
-    const approvalCheckbox = document.getElementById('approval-checkbox');
     const statusMessage = document.getElementById('status-message');
     const progressContainer = document.getElementById('progress-container');
     const progressBar = document.getElementById('progress-bar');
-    const validationBlock = document.getElementById('validation-block');
     const platformsMessage = document.getElementById('platforms-message');
 
-    let validationToken = null;
     let isLoading = false;
 
     function showMessage(message, isError = false) {
@@ -182,61 +149,15 @@
       return new Blob(chunks);
     }
 
-    function updateDownloadState() {
-      downloadButton.disabled = isLoading || !validationToken || !approvalCheckbox.checked;
-    }
-
-    function toggleLoading(loading, phase = 'validate') {
+    function toggleLoading(loading) {
       isLoading = loading;
       urlInput.disabled = loading;
-      validateButton.disabled = loading;
+      downloadButton.disabled = loading;
       limpiarBtn.disabled = loading;
-      approvalCheckbox.disabled = loading;
-      validateButton.textContent = phase === 'validate' && loading ? 'Procesando…' : '🔎 Validar publicación';
-      downloadButton.textContent = phase === 'download' && loading ? 'Procesando…' : '📥 Descargar MP4';
-      updateDownloadState();
+      downloadButton.textContent = loading ? 'Procesando…' : '📥 Descargar MP4';
       if (loading) {
         statusMessage.style.display = 'none';
       }
-    }
-
-    function resetValidation() {
-      validationToken = null;
-      approvalCheckbox.checked = false;
-      validationBlock.classList.add('hidden');
-      document.getElementById('normalized-url').textContent = '-';
-      document.getElementById('post-id').textContent = '-';
-      document.getElementById('account-handle').textContent = '-';
-      document.getElementById('title-value').textContent = '-';
-      document.getElementById('platform-badge').textContent = 'Plataforma';
-      document.getElementById('signal-badge').textContent = 'Señal';
-      document.getElementById('confidence-badge').textContent = 'Confianza';
-      setProgress(0, false);
-      updateDownloadState();
-    }
-
-    function renderValidation(data) {
-      validationToken = data.validation_token;
-      document.getElementById('normalized-url').textContent = data.normalized_url || '-';
-      document.getElementById('post-id').textContent = data.post_id || '-';
-      document.getElementById('account-handle').textContent = data.account_handle || '-';
-      document.getElementById('title-value').textContent = data.title || '-';
-      document.getElementById('platform-badge').textContent = `Plataforma: ${data.platform || '-'}`;
-      document.getElementById('signal-badge').textContent = data.is_likely_public_service_account
-        ? 'Cuenta posiblemente institucional'
-        : 'Sin señal institucional clara';
-      document.getElementById('confidence-badge').textContent = `Confianza ${Math.round((data.confidence_score || 0) * 100)}%`;
-
-      const reasonsList = document.getElementById('reasons-list');
-      reasonsList.innerHTML = '';
-      for (const reason of data.reasons || []) {
-        const item = document.createElement('li');
-        item.textContent = reason;
-        reasonsList.appendChild(item);
-      }
-
-      validationBlock.classList.remove('hidden');
-      updateDownloadState();
     }
 
     async function loadPlatforms() {
@@ -253,19 +174,23 @@
       }
     }
 
-    async function validateUrl() {
+    // El backend exige un validation_token emitido por /validate para poder
+    // llamar a /download (no expone descarga directa por URL), así que este
+    // paso se sigue haciendo por debajo. Lo que se elimina es la revisión
+    // manual: ya no se muestra al usuario el resultado de /validate ni se le
+    // pide marcar una casilla de aprobación antes de descargar.
+    async function descargarVideo() {
       const url = urlInput.value.trim();
       if (!url) {
         showMessage('Por favor, introduce una URL válida.', true);
         return;
       }
 
-      resetValidation();
-      toggleLoading(true, 'validate');
-      setProgress(45, true);
+      toggleLoading(true);
+      setProgress(20, true);
 
       try {
-        const response = await fetch(`${CLOUD_RUN_BASE}/validate`, {
+        const validateResponse = await fetch(`${CLOUD_RUN_BASE}/validate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -273,63 +198,39 @@
           body: JSON.stringify({ url }),
         });
 
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || `Error ${response.status}: ${response.statusText}`);
+        const validateData = await validateResponse.json();
+        if (!validateResponse.ok) {
+          throw new Error(validateData.error || `Error ${validateResponse.status}: ${validateResponse.statusText}`);
         }
 
-        setProgress(100, true);
-        renderValidation(data);
-        showMessage('✅ Validación completada. Revisa el resultado y marca la aprobación manual para descargar.');
-      } catch (error) {
-        console.error('Error al validar:', error);
-        setProgress(0, false);
-        showMessage(`❌ Error en la validación: ${error.message || 'Fallo de red con Cloud Run.'}`, true);
-      } finally {
-        toggleLoading(false, 'validate');
-      }
-    }
+        setProgress(45, true);
 
-    async function downloadVideo() {
-      if (!validationToken) {
-        showMessage('❌ Primero necesitas una validación con token.', true);
-        return;
-      }
-      if (!approvalCheckbox.checked) {
-        showMessage('❌ Debes marcar la aprobación manual antes de descargar.', true);
-        return;
-      }
-
-      toggleLoading(true, 'download');
-      setProgress(60, true);
-
-      try {
-        const response = await fetch(`${CLOUD_RUN_BASE}/download`, {
+        const downloadResponse = await fetch(`${CLOUD_RUN_BASE}/download`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            validation_token: validationToken,
+            validation_token: validateData.validation_token,
             manual_approved: true,
           }),
         });
 
-        if (!response.ok) {
-          let errorMessage = `Error ${response.status}: ${response.statusText}`;
+        if (!downloadResponse.ok) {
+          let errorMessage = `Error ${downloadResponse.status}: ${downloadResponse.statusText}`;
           try {
-            const errorData = await response.json();
+            const errorData = await downloadResponse.json();
             errorMessage = errorData.error || errorMessage;
           } catch (e) {
-            if (response.status === 504) {
+            if (downloadResponse.status === 504) {
               errorMessage = 'Tiempo de espera agotado. El vídeo puede ser demasiado pesado o la plataforma no responde.';
             }
           }
           throw new Error(errorMessage);
         }
 
-        const blob = await readBlobWithProgress(response);
-        const contentDisposition = response.headers.get('Content-Disposition');
+        const blob = await readBlobWithProgress(downloadResponse);
+        const contentDisposition = downloadResponse.headers.get('Content-Disposition');
         let filename = 'video_descargado.mp4';
         if (contentDisposition) {
           const match = contentDisposition.match(/filename="?([^"]+)"?/);
@@ -338,14 +239,14 @@
           }
         }
 
-        const url = window.URL.createObjectURL(blob);
+        const objectUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
+        a.href = objectUrl;
         a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+        window.URL.revokeObjectURL(objectUrl);
 
         setProgress(100, true);
         showMessage(`✅ Descarga iniciada con éxito. Archivo: ${filename}`);
@@ -354,23 +255,20 @@
         setProgress(0, false);
         showMessage(`❌ Error en la descarga: ${error.message || 'Fallo de red con Cloud Run.'}`, true);
       } finally {
-        toggleLoading(false, 'download');
+        toggleLoading(false);
       }
     }
 
     limpiarBtn.addEventListener('click', () => {
       urlInput.value = '';
       urlInput.focus();
-      resetValidation();
+      setProgress(0, false);
       showMessage('Esperando URL...');
     });
 
-    validateButton.addEventListener('click', validateUrl);
-    downloadButton.addEventListener('click', downloadVideo);
-    approvalCheckbox.addEventListener('change', updateDownloadState);
+    downloadButton.addEventListener('click', descargarVideo);
 
     loadPlatforms();
-    updateDownloadState();
   </script>
 </body>
 </html>
