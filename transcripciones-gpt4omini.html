@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <script src="auth-check.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Transcriptor GPT-4o mini · Diario de Navarra</title>
+  <meta name="description" content="Interfaz clara para subir audios y descargar transcripciones en ZIP" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+      Diario de Navarra · Utilidades
+      <span class="badge">Transcriptor GPT-4o mini</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="card stack" aria-labelledby="titulo">
+      <div class="stack stack-tight">
+        <h1 id="titulo" class="title">📝 Transcriptor de entrevistas · prueba GPT-4o mini</h1>
+        <p class="subtitle">Sube un audio y descarga automáticamente las transcripciones en un zip cuando el sistema termina el procesamiento.</p>
+      </div>
+
+      <details>
+        <summary>📘 Haz clic aquí para instrucciones, sobre todo si no lo has usado.</summary>
+        <div class="panel">
+          <p>Este es un sistema en pruebas de transcripción de entrevistas y ruedas de prensa. En esta versión funciona de la siguiente forma:</p>
+          <ul>
+            <li>Elige un archivo. Es mejor que le hayas puesto un nombre claro y que no llegue a media hora de duración.</li>
+            <li>Si necesitas cortarlo, puedes utilizar este servicioen la web: https://mp3cut.net/es/</li>
+            <li>Selecciona el idioma original y la plantilla (prompt) que se usará para corregir/formatear. Hay versiones para entrevistas y ruedas de prensa o conferencias. La versión para ruedas de prensa está todavía en una fase preliminar.</li>
+            <li>Pulsa en <strong>Subir el archivo y procesarlo</strong>.</li>
+            <li>El sistema va informando de los pasos que da.</li>
+            <li>Al final se descargará el ZIP automáticamente.</li>
+          </ul>
+        </div>
+      </details>
+
+      <label for="archivo">Selecciona un archivo de audio (menos de media hora):</label>
+      <input type="file" id="archivo" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.opus,.flac,.amr,.3gp,.wma" />
+
+      <!-- NUEVO: Controles de idioma y prompt -->
+      <div class="row">
+        <label for="idioma">Idioma original:</label>
+        <select id="idioma">
+          <option value="es" selected>Español</option>
+          <option value="en">Inglés</option>
+          <option value="fr">Francés</option>
+          <option value="auto">Detectar automáticamente</option>
+        </select>
+
+        <label for="prompt">Plantilla (prompt):</label>
+        <select id="prompt">
+          <option value="entrevista" selected>Entrevista (preguntas y respuestas)</option>
+          <option value="rueda_prensa">Rueda de prensa/ conferencias/ entrevistas a varias personas</option>
+          <!-- Puedes añadir más opciones aquí -->
+        </select>
+      </div>
+
+      <div class="row">
+        <button id="subir">📤 Subir el archivo y procesarlo</button>
+        <button id="limpiar" class="btn-secondary" type="button">Quitar archivo</button>
+      </div>
+
+      <div class="stack">
+        <h3 class="section-heading">Progreso</h3>
+        <pre id="progreso" class="result">Esperando archivo...</pre>
+        <div class="row">
+          <button id="descargar" class="hidden">📥 Descargar las transcripciones</button>
+          <button id="reintentar" class="hidden btn-secondary" type="button">🔁 Reintentar descarga</button>
+        </div>
+        <p class="footer">El archivo ZIP se descarga automáticamente.</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Cambia esta URL según el entorno: staging o producción
+    // Prueba GPT-4o mini: https://transcriptor-gpt4omini-test-811896322472.europe-west1.run.app
+    // Staging: https://transcriptor-prompts-811896322472.europe-west1.run.app
+    // Prod:    https://transcriptor-servicio-811896322472.europe-west1.run.app/
+    const BASE_URL = 'https://transcriptor-gpt4omini-test-811896322472.europe-west1.run.app';
+
+    const archivoInput = document.getElementById('archivo');
+    const subirBtn = document.getElementById('subir');
+    const limpiarBtn = document.getElementById('limpiar');
+    const progreso = document.getElementById('progreso');
+    const botonDescargar = document.getElementById('descargar');
+    const botonReintentar = document.getElementById('reintentar');
+    const selIdioma = document.getElementById('idioma');
+    const selPrompt = document.getElementById('prompt');
+
+    let zipDescargable = null;      // nombre del ZIP para fallback local
+    let nombreZipPendiente = null;  // idem
+    let urlDescargaDirecta = null;  // signed URL de GCS (opción preferente)
+    let urlDescargaBackend = null;  // /descargar/<zip> (fallback)
+    let nombreArchivoZip = 'transcripciones.zip';
+    let ultimaLineaSSE = '';
+    let etapaActual = '';
+    let intervaloPulsoCorreccion = null;
+
+    archivoInput.addEventListener('change', () => {
+      const f = archivoInput.files[0];
+      if (!f) {
+        progreso.textContent = 'Esperando archivo...';
+        return;
+      }
+      if (f.size === 0) {
+        progreso.textContent = `⚠️ "${f.name}" parece vacío o no se ha descargado del todo (0 bytes). Si está en la nube (iCloud/Drive/WhatsApp), ábrelo primero para descargarlo por completo y vuelve a seleccionarlo.`;
+        return;
+      }
+      const tamañoMB = (f.size / (1024 * 1024)).toFixed(1);
+      progreso.textContent = `📄 Archivo seleccionado: ${f.name} (${tamañoMB} MB)\nPulsa "Subir el archivo y procesarlo" para continuar.`;
+    });
+
+    function bloquearUI(b) {
+      subirBtn.disabled = b;
+      limpiarBtn.disabled = b;
+      archivoInput.disabled = b;
+      selIdioma.disabled = b;
+      selPrompt.disabled = b;
+    }
+
+    function limpiarEstadoDescarga() {
+      zipDescargable = null;
+      nombreZipPendiente = null;
+      urlDescargaDirecta = null;
+      urlDescargaBackend = null;
+      nombreArchivoZip = 'transcripciones.zip';
+    }
+
+    function dispararDescarga(url, nombre = 'transcripciones.zip', nuevaPestana = false) {
+      if (!url) return false;
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.rel = 'noopener';
+      if (nuevaPestana) enlace.target = '_blank';
+      enlace.download = nombre;
+      document.body.appendChild(enlace);
+      enlace.click();
+      document.body.removeChild(enlace);
+      return true;
+    }
+
+    function intentarDescargaAutomatica(intento = 0, maxIntentos = 3) {
+      const url = urlDescargaDirecta || urlDescargaBackend;
+      if (!url) return;
+
+      dispararDescarga(url, nombreArchivoZip, false);
+      if (intento + 1 < maxIntentos) {
+        setTimeout(() => intentarDescargaAutomatica(intento + 1, maxIntentos), 2500);
+      }
+    }
+
+    function detectarEtapaReal(mensaje) {
+      const m = (mensaje || '').toLowerCase();
+      if (!m) return null;
+      if (m.includes('segment') || m.includes('fragment') || m.includes('trozo')) return '🔪 Etapa: segmentación';
+      if (m.includes('transcrib') || m.includes('whisper')) return '🎙️ Etapa: transcripción';
+      if (m.includes('corrig') || m.includes('prompt') || m.includes('formate')) return '✍️ Etapa: corrección';
+      if (m.includes('unific') || m.includes('ensambl') || m.includes('junt')) return '🧩 Etapa: consolidación';
+      if (m.includes('zip') || m.includes('almacenamiento') || m.startsWith('download::') || m.startsWith('download_url::')) return '📦 Etapa: empaquetado y entrega';
+      return null;
+    }
+
+    function registrarEventoReal(data) {
+      const linea = (data || '').trim();
+      if (!linea) return;
+      if (linea === ultimaLineaSSE) return;
+      ultimaLineaSSE = linea;
+
+      const etapa = detectarEtapaReal(linea);
+      if (etapa && etapa !== etapaActual) {
+        etapaActual = etapa;
+        progreso.textContent += `\n${etapa}\n`;
+        if (etapaActual === '✍️ Etapa: corrección') {
+          if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
+          intervaloPulsoCorreccion = setInterval(() => {
+            progreso.textContent += '\n⏳ Seguimos corrigiendo el texto...\n';
+          }, 30000);
+        } else if (intervaloPulsoCorreccion) {
+          clearInterval(intervaloPulsoCorreccion);
+          intervaloPulsoCorreccion = null;
+        }
+      }
+
+      progreso.textContent += linea + '\n';
+    }
+
+    limpiarBtn.addEventListener('click', () => {
+      archivoInput.value = '';
+      limpiarEstadoDescarga();
+      botonDescargar.classList.add('hidden');
+      botonReintentar.classList.add('hidden');
+      progreso.textContent = 'Esperando archivo...';
+      ultimaLineaSSE = '';
+      etapaActual = '';
+      if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
+      intervaloPulsoCorreccion = null;
+      bloquearUI(false);
+      archivoInput.focus();
+    });
+
+    subirBtn.addEventListener('click', async () => {
+      const archivo = archivoInput.files[0];
+      if (!archivo) { alert('Selecciona un archivo.'); return; }
+
+      progreso.textContent = '🔐 Preparando la subida...';
+      botonDescargar.classList.add('hidden');
+      botonReintentar.classList.add('hidden');
+      bloquearUI(true);
+
+      // 1) Pide URL firmada para subir a GCS
+   try {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), 15000); // 15s de timeout por si queda colgado
+
+  const respuesta = await fetch(`${BASE_URL}/firmar-subida`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre_archivo: archivo.name }),
+    signal: ac.signal
+  });
+  clearTimeout(t);
+
+  if (!respuesta.ok) {
+    let detalle = '';
+    try { const j = await respuesta.json(); detalle = j.error ? ` Detalle: ${j.error}` : ''; } catch {}
+    progreso.textContent = '❌ Error al generar URL de subida.' + detalle;
+    bloquearUI(false);
+    return;
+  }
+
+  var { signed_url, gs_uri } = await respuesta.json(); // usa var para que exista fuera del try
+} catch (err) {
+  progreso.textContent = '❌ No se pudo contactar con el servicio (/firmar-subida).';
+  if (err && err.name === 'AbortError') {
+    progreso.textContent += ' Detalle: timeout (15s).';
+  } else if (err && err.message) {
+    progreso.textContent += ` Detalle: ${err.message}`;
+  }
+  bloquearUI(false);
+  return;
+}
+
+      // 2) Sube el archivo con PUT
+      progreso.textContent += '\n⬆️ Subiendo el archivo...';
+      try {
+        const uploadResp = await fetch(signed_url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: archivo
+        });
+
+        if (!uploadResp.ok) {
+          progreso.textContent += `\n❌ Error al subir el archivo. Código: ${uploadResp.status}`;
+          bloquearUI(false);
+          return;
+        }
+
+        progreso.textContent += '\n✅ Subida completada. Procesando...';
+        iniciarSSE(gs_uri);
+
+      } catch (err) {
+        progreso.textContent += `\n❌ Error de red durante la subida: ${err}`;
+        bloquearUI(false);
+      }
+    });
+
+    botonDescargar.addEventListener('click', () => {
+      const url = urlDescargaDirecta || urlDescargaBackend;
+      if (!url) return;
+      progreso.textContent += '\n📥 Iniciando descarga manual...';
+      dispararDescarga(url, nombreArchivoZip, true);
+    });
+
+    botonReintentar.addEventListener('click', () => {
+      const url = urlDescargaDirecta || urlDescargaBackend;
+      if (!url && nombreZipPendiente) {
+        verificarZIP(nombreZipPendiente);
+        return;
+      }
+      progreso.textContent += '\n🔁 Reintentando descarga...';
+      intentarDescargaAutomatica(0, 2);
+    });
+
+    function iniciarSSE(gs_uri) {
+      progreso.textContent += `\n🎛️ Modo: prompt=${selPrompt.value}, idioma=${selIdioma.value}\n`;
+      progreso.textContent += '\n🧠 Procesando audio...\n';
+      ultimaLineaSSE = '';
+      etapaActual = '';
+      if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
+      intervaloPulsoCorreccion = null;
+      limpiarEstadoDescarga();
+      botonDescargar.classList.add('hidden');
+      botonReintentar.classList.add('hidden');
+
+      const url = `${BASE_URL}/transcribir-stream` +
+                  `?gcs_uri=${encodeURIComponent(gs_uri)}` +
+                  `&source_lang=${encodeURIComponent(selIdioma.value)}` +
+                  `&prompt_id=${encodeURIComponent(selPrompt.value)}`;
+
+      fetch(url, { method: 'POST' })
+        .then(response => {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder('utf-8');
+
+          const read = () => {
+            reader.read().then(({ done, value }) => {
+              if (done) {
+                if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
+                intervaloPulsoCorreccion = null;
+                bloquearUI(false);
+                return;
+              }
+              const chunk = decoder.decode(value, { stream: true });
+              chunk.split('\n\n').forEach(block => {
+                const match = block.match(/^data:\s*(.*)$/m);
+                if (match) {
+                  const data = match[1];
+
+                  // Descarga directa desde GCS (sin esperas)
+                  if (data.startsWith('DOWNLOAD_URL::')) {
+                    const urlFirmada = data.split('::')[1];
+                    if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
+                    intervaloPulsoCorreccion = null;
+                    urlDescargaDirecta = urlFirmada;
+                    nombreArchivoZip = 'transcripciones.zip';
+                    progreso.textContent += '\n✅ ZIP disponible. Intentando descarga automática y dejando botón manual por si el navegador la bloquea.';
+                    botonDescargar.classList.remove('hidden');
+                    botonReintentar.classList.remove('hidden');
+                    intentarDescargaAutomatica(0, 1);
+                    bloquearUI(false);
+                    return;
+                  }
+
+                  // Fallback clásico: /descargar/<zip> desde el backend
+                  if (data.startsWith('DOWNLOAD::')) {
+                    const nombreZip = data.split('::')[1];
+                    if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
+                    intervaloPulsoCorreccion = null;
+                    nombreZipPendiente = nombreZip;
+                    zipDescargable = nombreZip;
+                    nombreArchivoZip = nombreZip;
+                    urlDescargaBackend = `${BASE_URL}/descargar/` + nombreZip;
+                    progreso.textContent += `\n🕒 Esperando 30 segundos antes de verificar la descarga...`;
+                    setTimeout(() => { verificarZIP(nombreZip); }, 30000);
+                  } else {
+                    registrarEventoReal(data);
+                  }
+                }
+              });
+              read();
+            });
+          };
+          read();
+        })
+        .catch(() => {
+          if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
+          intervaloPulsoCorreccion = null;
+          progreso.textContent += '\n❌ Error al iniciar el procesamiento.';
+          bloquearUI(false);
+        });
+    }
+
+    async function verificarZIP(nombreZip, intentos = 0) {
+      const urlZip = `${BASE_URL}/descargar/` + nombreZip;
+      progreso.textContent += `\n📦 Verificando disponibilidad real del ZIP (intento ${intentos + 1})...`;
+      try {
+        const res = await fetch(urlZip, { method: 'GET' });
+        if (res.ok) {
+          progreso.textContent += `\n✅ Transcripción completada. Pulsa el botón para descargar.`;
+          zipDescargable = nombreZip;
+          nombreArchivoZip = nombreZip;
+          urlDescargaBackend = urlZip;
+          botonDescargar.classList.remove('hidden');
+          botonReintentar.classList.remove('hidden');
+          bloquearUI(false);
+          return;
+        }
+        if (intentos < 6) {
+          setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000);
+        } else {
+          progreso.textContent += `\n⚠️ ZIP aún no disponible para descarga.`;
+          botonReintentar.classList.remove('hidden');
+          bloquearUI(false);
+        }
+      } catch (_) {
+        if (intentos < 6) {
+          setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000);
+        } else {
+          progreso.textContent += `\n❌ Error al verificar disponibilidad del ZIP.`;
+          botonReintentar.classList.remove('hidden');
+          bloquearUI(false);
+        }
+      }
+    }
+  </script>
+</body>
+</html>
