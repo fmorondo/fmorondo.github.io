@@ -87,7 +87,8 @@
     const BASE_URL = 'https://transcriptor-servicio-811896322472.europe-west1.run.app';
     const SHADOW_EXPERIMENT_URL = 'https://transcriptor-gpt4omini-test-811896322472.europe-west1.run.app';
     const SHADOW_EXPERIMENT_RATE = 0.5;
-    const SHADOW_EXPERIMENT_END = Date.parse('2026-07-29T00:00:00+02:00');
+    const SHADOW_EXPERIMENT_START = Date.parse('2026-09-01T00:00:00+02:00');
+    const SHADOW_EXPERIMENT_END = Date.parse('2026-09-16T00:00:00+02:00');
 
     const archivoInput = document.getElementById('archivo');
     const subirBtn = document.getElementById('subir');
@@ -172,7 +173,8 @@
     }
 
     function experimentoShadowActivo() {
-      return Date.now() < SHADOW_EXPERIMENT_END;
+      const ahora = Date.now();
+      return ahora >= SHADOW_EXPERIMENT_START && ahora < SHADOW_EXPERIMENT_END;
     }
 
     function crearExperimentId() {
