@@ -189,7 +189,7 @@
       if (Math.random() >= SHADOW_EXPERIMENT_RATE) return;
 
       const payload = {
-        gcs_uri,
+        gcs_uri: gs_uri,
         experiment_id: crearExperimentId(),
         original_filename: archivo.name,
         source_lang: selIdioma.value,
