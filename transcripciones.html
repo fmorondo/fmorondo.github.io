@@ -85,10 +85,11 @@
     // Staging: https://transcriptor-prompts-811896322472.europe-west1.run.app
     // Prod:    https://transcriptor-servicio-811896322472.europe-west1.run.app/
     const BASE_URL = 'https://transcriptor-servicio-811896322472.europe-west1.run.app';
+    // Experimento 2: whisper-1 vs gpt-transcribe (mismo servicio de test, modelo actualizado por env var)
     const SHADOW_EXPERIMENT_URL = 'https://transcriptor-gpt4omini-test-811896322472.europe-west1.run.app';
     const SHADOW_EXPERIMENT_RATE = 0.5;
-    const SHADOW_EXPERIMENT_START = Date.parse('2026-09-01T00:00:00+02:00');
-    const SHADOW_EXPERIMENT_END = Date.parse('2026-09-16T00:00:00+02:00');
+    const SHADOW_EXPERIMENT_START = Date.parse('2026-09-15T00:00:00+02:00');
+    const SHADOW_EXPERIMENT_END = Date.parse('2026-09-30T00:00:00+02:00');
 
     const archivoInput = document.getElementById('archivo');
     const subirBtn = document.getElementById('subir');
