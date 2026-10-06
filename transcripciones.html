@@ -85,11 +85,6 @@
     // Staging: https://transcriptor-prompts-811896322472.europe-west1.run.app
     // Prod:    https://transcriptor-servicio-811896322472.europe-west1.run.app/
     const BASE_URL = 'https://transcriptor-servicio-811896322472.europe-west1.run.app';
-    // Experimento 2: whisper-1 vs gpt-transcribe (mismo servicio de test, modelo actualizado por env var)
-    const SHADOW_EXPERIMENT_URL = 'https://transcriptor-gpt4omini-test-811896322472.europe-west1.run.app';
-    const SHADOW_EXPERIMENT_RATE = 0.5;
-    const SHADOW_EXPERIMENT_START = Date.parse('2026-09-15T00:00:00+02:00');
-    const SHADOW_EXPERIMENT_END = Date.parse('2026-09-30T00:00:00+02:00');
 
     const archivoInput = document.getElementById('archivo');
     const subirBtn = document.getElementById('subir');
@@ -171,43 +166,6 @@
       if (m.includes('unific') || m.includes('ensambl') || m.includes('junt')) return '🧩 Etapa: consolidación';
       if (m.includes('zip') || m.includes('almacenamiento') || m.startsWith('download::') || m.startsWith('download_url::')) return '📦 Etapa: empaquetado y entrega';
       return null;
-    }
-
-    function experimentoShadowActivo() {
-      const ahora = Date.now();
-      return ahora >= SHADOW_EXPERIMENT_START && ahora < SHADOW_EXPERIMENT_END;
-    }
-
-    function crearExperimentId() {
-      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-        return window.crypto.randomUUID();
-      }
-      return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    }
-
-    function lanzarExperimentoShadow(gs_uri, archivo) {
-      if (!experimentoShadowActivo()) return;
-      if (Math.random() >= SHADOW_EXPERIMENT_RATE) return;
-
-      const payload = {
-        gcs_uri: gs_uri,
-        experiment_id: crearExperimentId(),
-        original_filename: archivo.name,
-        source_lang: selIdioma.value,
-        prompt_id: selPrompt.value
-      };
-
-      fetch(`${SHADOW_EXPERIMENT_URL}/comparar-shadow`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-        .then(res => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.json();
-        })
-        .then(data => console.info('Experimento shadow guardado', data))
-        .catch(err => console.warn('No se pudo completar el experimento shadow', err));
     }
 
     function registrarEventoReal(data) {
@@ -306,7 +264,6 @@
         }
 
         progreso.textContent += '\n✅ Subida completada. Procesando...';
-        lanzarExperimentoShadow(gs_uri, archivo);
         iniciarSSE(gs_uri);
 
       } catch (err) {

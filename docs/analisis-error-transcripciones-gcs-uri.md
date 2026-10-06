@@ -1,5 +1,11 @@
 # Análisis del error "gcs_uri is not defined" en transcripciones.html
 
+> Documento histórico: describe la incidencia y su corrección antes del
+> experimento del 15–30 de septiembre de 2026. La lógica shadow se retiró del
+> frontend tras finalizar ese experimento. La ventana y el contexto para
+> analizar sus resultados están en el
+> [README de Transcripciones](servicios/transcripciones/README.md#experimento-shadow-de-septiembre-de-2026-finalizado).
+
 ## Contexto inicial
 
 Un usuario reportó el siguiente error en la interfaz de subida de transcripciones:
