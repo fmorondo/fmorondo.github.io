@@ -32,6 +32,9 @@
   cadenas con prefijos. La barra de progreso se calcula con ellos.
 - El limite es de dos horas por audio, no "media hora". El navegador avisa antes de subir si el
   audio es mas largo, pero quien lo hace cumplir es el servicio.
+- El ZIP se llama `<nombre del audio>_transcripciones.zip` y la pagina muestra el nombre del audio,
+  no un identificador. Mientras arranca la ejecucion en el servidor (hasta casi un minuto con Cloud
+  Run Jobs) recuerda cada 20 segundos que el trabajo sigue en marcha.
 - Sin experimento A/B.
 
 ## Seguridad

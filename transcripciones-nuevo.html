@@ -91,6 +91,7 @@
     const LIMITE_SEGUNDOS = 2 * 60 * 60;
     const MAX_REINTENTOS_SEGUIMIENTO = 40;      // reconexiones seguidas del seguimiento en directo
     const ESPERA_REINTENTO_MS = 3000;
+    const ESPERA_ARRANQUE_MS = 20000;           // cada cuánto recordar que se espera al arranque
     const CLAVE_ULTIMO_TRABAJO = 'transcriptor.ultimoTrabajo';
     const VIGENCIA_ULTIMO_TRABAJO_MS = 3 * 60 * 60 * 1000;
 
@@ -265,8 +266,8 @@
         });
         idTrabajoActual = trabajo.id;
         guardarUltimoTrabajo(trabajo.id, archivo.name);
+        escribir(`📄 Audio: ${archivo.name}`);
         escribir(`🎛️ Modo: plantilla=${selPrompt.value}, idioma=${selIdioma.value}`);
-        escribir('🧠 Procesando audio...');
         await seguirTrabajo(trabajo.id);
       } catch (e) {
         escribir(`❌ ${e.message}`);
@@ -296,24 +297,40 @@
       let ultimo = 0;
       let estado = null;
       let fallos = 0;
-      while (!estado) {
-        try {
-          const r = await fetch(`${API_BASE}/api/jobs/${id}/events?desde=${ultimo}`, { headers: cabeceras() });
-          if (!r.ok) throw new ErrorHttp(r.status, textoDeEstado(r.status, await detalleDeError(r)));
-          fallos = 0;
-          await leerFlujo(r, (bloque) => {
-            if (bloque.id) ultimo = Math.max(ultimo, parseInt(bloque.id, 10) || 0);
-            if (bloque.evento === 'estado') estado = bloque.datos;
-            else mostrarEvento(bloque.evento, bloque.datos);
-          });
-        } catch (e) {
-          if (e instanceof ErrorHttp && (e.estado === 401 || e.estado === 404)) throw e;
-          fallos++;
-          if (fallos > MAX_REINTENTOS_SEGUIMIENTO) {
-            throw new Error('Se ha perdido la conexión con el servicio. El trabajo sigue en marcha: usa "Retomar el último trabajo" en unos minutos.');
-          }
+      // El arranque de la ejecución en el servidor puede tardar casi un minuto: mientras no
+      // llegue el aviso de que el procesamiento ha empezado, se recuerda que el trabajo sigue.
+      let arrancado = false;
+      let ultimaNovedad = Date.now();
+      const pulso = setInterval(() => {
+        if (!arrancado && Date.now() - ultimaNovedad > ESPERA_ARRANQUE_MS) {
+          escribir('⏳ Seguimos esperando a que arranque el procesamiento...');
+          ultimaNovedad = Date.now();
         }
-        if (!estado) await new Promise((res) => setTimeout(res, ESPERA_REINTENTO_MS));
+      }, 5000);
+      try {
+        while (!estado) {
+          try {
+            const r = await fetch(`${API_BASE}/api/jobs/${id}/events?desde=${ultimo}`, { headers: cabeceras() });
+            if (!r.ok) throw new ErrorHttp(r.status, textoDeEstado(r.status, await detalleDeError(r)));
+            fallos = 0;
+            await leerFlujo(r, (bloque) => {
+              if (bloque.id) ultimo = Math.max(ultimo, parseInt(bloque.id, 10) || 0);
+              if (bloque.evento === 'estado') { estado = bloque.datos; return; }
+              ultimaNovedad = Date.now();
+              if (bloque.datos && /iniciado/i.test(bloque.datos.mensaje || '')) arrancado = true;
+              mostrarEvento(bloque.evento, bloque.datos);
+            });
+          } catch (e) {
+            if (e instanceof ErrorHttp && (e.estado === 401 || e.estado === 404)) throw e;
+            fallos++;
+            if (fallos > MAX_REINTENTOS_SEGUIMIENTO) {
+              throw new Error('Se ha perdido la conexión con el servicio. El trabajo sigue en marcha: usa "Retomar el último trabajo" en unos minutos.');
+            }
+          }
+          if (!estado) await new Promise((res) => setTimeout(res, ESPERA_REINTENTO_MS));
+        }
+      } finally {
+        clearInterval(pulso);
       }
       await terminar(id, estado);
     }
