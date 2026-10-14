@@ -62,7 +62,7 @@ convertir, descargar), no añadir OpenAI solo porque esté disponible.
 |---|---|---|
 | `koldo.html`, `osasuna.html`, `osasuna-prensa.html`, `subidacsv.html` | `KoldoGPTnuevo` | Cliente OpenAI + `file_search` sobre `vector_store_ids` (varios asistentes conviven en el mismo servicio, un slug de ruta por asistente) |
 | `buscadorprotocolo.html` (Asesor de cumplimiento) | `buscador-protocolos-gli` | Mismo patrón: cliente OpenAI + `vector_store_id` |
-| `transcripciones.html`, `transcripciones2.html` | `transcripcionesDN` | Whisper para transcribir + ChatGPT para corregir y consolidar |
+| `transcripciones.html` | `transcriptor` | `gpt-transcribe` para transcribir + GPT para corregir; trabajo asíncrono |
 
 ## Resumen
 

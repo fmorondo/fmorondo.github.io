@@ -5,7 +5,7 @@
   <script src="auth-check.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Transcriptor de entrevistas · Diario de Navarra</title>
-  <meta name="description" content="Interfaz clara para subir audios y descargar transcripciones en ZIP" />
+  <meta name="description" content="Sube un audio de hasta dos horas y descarga la transcripción bruta y la corregida en un ZIP" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -30,22 +30,20 @@
       <details>
         <summary>📘 Haz clic aquí para instrucciones, sobre todo si no lo has usado.</summary>
         <div class="panel">
-          <p>Este es un sistema en pruebas de transcripción de entrevistas y ruedas de prensa. En esta versión funciona de la siguiente forma:</p>
+          <p>Este sistema transcribe entrevistas y ruedas de prensa. Funciona así:</p>
           <ul>
-            <li>Elige un archivo. Es mejor que le hayas puesto un nombre claro y que no llegue a media hora de duración.</li>
-            <li>Si necesitas cortarlo, puedes utilizar este servicioen la web: https://mp3cut.net/es/</li>
-            <li>Selecciona el idioma original y la plantilla (prompt) que se usará para corregir/formatear. Hay versiones para entrevistas y ruedas de prensa o conferencias. La versión para ruedas de prensa está todavía en una fase preliminar.</li>
+            <li>Elige un archivo de audio de <strong>hasta dos horas</strong>. Es mejor que le hayas puesto un nombre claro.</li>
+            <li>Selecciona el idioma original y la plantilla (prompt) que se usará para corregir y formatear. Hay versiones para entrevistas y para ruedas de prensa o conferencias. La versión para ruedas de prensa está todavía en una fase preliminar.</li>
             <li>Pulsa en <strong>Subir el archivo y procesarlo</strong>.</li>
-            <li>El sistema va informando de los pasos que da.</li>
-            <li>Al final se descargará el ZIP automáticamente.</li>
+            <li>El sistema va informando de los pasos que da. Puedes dejar la página abierta o volver más tarde: el trabajo sigue en marcha aunque cierres la pestaña.</li>
+            <li>Al final se descargará el ZIP automáticamente, con la transcripción bruta y la corregida.</li>
           </ul>
         </div>
       </details>
 
-      <label for="archivo">Selecciona un archivo de audio (menos de media hora):</label>
+      <label for="archivo">Selecciona un archivo de audio (hasta dos horas):</label>
       <input type="file" id="archivo" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.opus,.flac,.amr,.3gp,.wma" />
 
-      <!-- NUEVO: Controles de idioma y prompt -->
       <div class="row">
         <label for="idioma">Idioma original:</label>
         <select id="idioma">
@@ -59,69 +57,103 @@
         <select id="prompt">
           <option value="entrevista" selected>Entrevista (preguntas y respuestas)</option>
           <option value="rueda_prensa">Rueda de prensa/ conferencias/ entrevistas a varias personas</option>
-          <!-- Puedes añadir más opciones aquí -->
         </select>
       </div>
 
       <div class="row">
         <button id="subir">📤 Subir el archivo y procesarlo</button>
         <button id="limpiar" class="btn-secondary" type="button">Quitar archivo</button>
+        <button id="reanudar" class="btn-secondary hidden" type="button">🔄 Retomar el último trabajo</button>
       </div>
 
       <div class="stack">
         <h3 class="section-heading">Progreso</h3>
-        <pre id="progreso" class="result">Esperando archivo...</pre>
+        <div class="progress" aria-hidden="true"><div id="barra"></div></div>
+        <pre id="progreso" class="result" aria-live="polite">Esperando archivo...</pre>
         <div class="row">
           <button id="descargar" class="hidden">📥 Descargar las transcripciones</button>
-          <button id="reintentar" class="hidden btn-secondary" type="button">🔁 Reintentar descarga</button>
         </div>
         <p class="footer">El archivo ZIP se descarga automáticamente.</p>
       </div>
     </section>
+
+    <p class="footer">Diario de Navarra · Laboratorio de IA y automatización editorial</p>
   </main>
 
   <script>
-    // Cambia esta URL según el entorno: staging o producción
-    // Staging: https://transcriptor-prompts-811896322472.europe-west1.run.app
-    // Prod:    https://transcriptor-servicio-811896322472.europe-west1.run.app/
-    const BASE_URL = 'https://transcriptor-servicio-811896322472.europe-west1.run.app';
-    // Experimento 2: whisper-1 vs gpt-transcribe (mismo servicio de test, modelo actualizado por env var)
-    const SHADOW_EXPERIMENT_URL = 'https://transcriptor-gpt4omini-test-811896322472.europe-west1.run.app';
-    const SHADOW_EXPERIMENT_RATE = 0.5;
-    const SHADOW_EXPERIMENT_START = Date.parse('2026-09-15T00:00:00+02:00');
-    const SHADOW_EXPERIMENT_END = Date.parse('2026-09-30T00:00:00+02:00');
+    // Servicio de transcripción (Cloud Run). La URL tiene la forma https://<servicio>-<número de proyecto>.<región>.run.app
+    const API_BASE = 'https://transcriptor-811896322472.europe-west1.run.app';
+    // Token del servicio (secreto API_TOKEN). Al estar en una página pública es visible para cualquiera:
+    // solo frena tráfico casual. La protección real son los límites del servicio (duración, trabajos
+    // simultáneos y minutos diarios). Si el servicio no exige token, déjalo vacío.
+    const API_TOKEN = '40190f601ee0a7477dcec265aa22a04c0a3b5d98eb3852bd';
+
+    const LIMITE_SEGUNDOS = 2 * 60 * 60;
+    const MAX_REINTENTOS_SEGUIMIENTO = 40;      // reconexiones seguidas del seguimiento en directo
+    const ESPERA_REINTENTO_MS = 3000;
+    const ESPERA_ARRANQUE_MS = 20000;           // cada cuánto recordar que se espera al arranque
+    const CLAVE_ULTIMO_TRABAJO = 'transcriptor.ultimoTrabajo';
+    const VIGENCIA_ULTIMO_TRABAJO_MS = 3 * 60 * 60 * 1000;
 
     const archivoInput = document.getElementById('archivo');
     const subirBtn = document.getElementById('subir');
     const limpiarBtn = document.getElementById('limpiar');
+    const reanudarBtn = document.getElementById('reanudar');
     const progreso = document.getElementById('progreso');
+    const barra = document.getElementById('barra');
     const botonDescargar = document.getElementById('descargar');
-    const botonReintentar = document.getElementById('reintentar');
     const selIdioma = document.getElementById('idioma');
     const selPrompt = document.getElementById('prompt');
 
-    let zipDescargable = null;      // nombre del ZIP para fallback local
-    let nombreZipPendiente = null;  // idem
-    let urlDescargaDirecta = null;  // signed URL de GCS (opción preferente)
-    let urlDescargaBackend = null;  // /descargar/<zip> (fallback)
-    let nombreArchivoZip = 'transcripciones.zip';
-    let ultimaLineaSSE = '';
-    let etapaActual = '';
-    let intervaloPulsoCorreccion = null;
+    let urlDescarga = null;        // URL firmada del ZIP, si el almacenamiento la ofrece
+    let idTrabajoActual = null;    // para descargar el ZIP a través de la API cuando no hay URL firmada
+    let nombreZip = 'transcripciones.zip';
 
-    archivoInput.addEventListener('change', () => {
-      const f = archivoInput.files[0];
-      if (!f) {
-        progreso.textContent = 'Esperando archivo...';
-        return;
+    class ErrorHttp extends Error {
+      constructor(estado, mensaje) { super(mensaje); this.estado = estado; }
+    }
+
+    function cabeceras(extra = {}) {
+      const h = { ...extra };
+      if (API_TOKEN) h['Authorization'] = 'Bearer ' + API_TOKEN;
+      return h;
+    }
+
+    async function detalleDeError(respuesta) {
+      try {
+        const j = await respuesta.json();
+        if (typeof j.detail === 'string') return j.detail;
+      } catch (_) { /* sin cuerpo JSON */ }
+      return '';
+    }
+
+    async function llamar(ruta, opciones = {}) {
+      const respuesta = await fetch(API_BASE + ruta, {
+        ...opciones,
+        headers: cabeceras(opciones.body ? { 'Content-Type': 'application/json' } : {}),
+      });
+      if (!respuesta.ok) {
+        const detalle = await detalleDeError(respuesta);
+        throw new ErrorHttp(respuesta.status, textoDeEstado(respuesta.status, detalle));
       }
-      if (f.size === 0) {
-        progreso.textContent = `⚠️ "${f.name}" parece vacío o no se ha descargado del todo (0 bytes). Si está en la nube (iCloud/Drive/WhatsApp), ábrelo primero para descargarlo por completo y vuelve a seleccionarlo.`;
-        return;
-      }
-      const tamañoMB = (f.size / (1024 * 1024)).toFixed(1);
-      progreso.textContent = `📄 Archivo seleccionado: ${f.name} (${tamañoMB} MB)\nPulsa "Subir el archivo y procesarlo" para continuar.`;
-    });
+      return respuesta.json();
+    }
+
+    function textoDeEstado(estado, detalle) {
+      if (estado === 401) return 'El servicio no ha aceptado el acceso (token no válido).';
+      if (estado === 429) return detalle || 'Hay demasiadas transcripciones en curso. Inténtalo de nuevo en unos minutos.';
+      if (estado === 404) return 'El servicio no encuentra ese trabajo (puede haber caducado).';
+      return detalle || `El servicio ha respondido con un error (HTTP ${estado}).`;
+    }
+
+    function escribir(texto) {
+      progreso.textContent += texto + '\n';
+      progreso.scrollTop = progreso.scrollHeight;
+    }
+
+    function fijarBarra(fraccion) {
+      barra.style.width = Math.max(0, Math.min(100, Math.round(fraccion * 100))) + '%';
+    }
 
     function bloquearUI(b) {
       subirBtn.disabled = b;
@@ -129,121 +161,70 @@
       archivoInput.disabled = b;
       selIdioma.disabled = b;
       selPrompt.disabled = b;
+      reanudarBtn.disabled = b;
     }
 
-    function limpiarEstadoDescarga() {
-      zipDescargable = null;
-      nombreZipPendiente = null;
-      urlDescargaDirecta = null;
-      urlDescargaBackend = null;
-      nombreArchivoZip = 'transcripciones.zip';
+    function reiniciarSalida() {
+      progreso.textContent = '';
+      fijarBarra(0);
+      botonDescargar.classList.add('hidden');
+      urlDescarga = null;
+      idTrabajoActual = null;
     }
 
-    function dispararDescarga(url, nombre = 'transcripciones.zip', nuevaPestana = false) {
-      if (!url) return false;
-      const enlace = document.createElement('a');
-      enlace.href = url;
-      enlace.rel = 'noopener';
-      if (nuevaPestana) enlace.target = '_blank';
-      enlace.download = nombre;
-      document.body.appendChild(enlace);
-      enlace.click();
-      document.body.removeChild(enlace);
-      return true;
+    function guardarUltimoTrabajo(id, nombre) {
+      try { localStorage.setItem(CLAVE_ULTIMO_TRABAJO, JSON.stringify({ id, nombre, ts: Date.now() })); } catch (_) {}
     }
 
-    function intentarDescargaAutomatica(intento = 0, maxIntentos = 3) {
-      const url = urlDescargaDirecta || urlDescargaBackend;
-      if (!url) return;
-
-      dispararDescarga(url, nombreArchivoZip, false);
-      if (intento + 1 < maxIntentos) {
-        setTimeout(() => intentarDescargaAutomatica(intento + 1, maxIntentos), 2500);
-      }
-    }
-
-    function detectarEtapaReal(mensaje) {
-      const m = (mensaje || '').toLowerCase();
-      if (!m) return null;
-      if (m.includes('segment') || m.includes('fragment') || m.includes('trozo')) return '🔪 Etapa: segmentación';
-      if (m.includes('transcrib') || m.includes('whisper')) return '🎙️ Etapa: transcripción';
-      if (m.includes('corrig') || m.includes('prompt') || m.includes('formate')) return '✍️ Etapa: corrección';
-      if (m.includes('unific') || m.includes('ensambl') || m.includes('junt')) return '🧩 Etapa: consolidación';
-      if (m.includes('zip') || m.includes('almacenamiento') || m.startsWith('download::') || m.startsWith('download_url::')) return '📦 Etapa: empaquetado y entrega';
+    function leerUltimoTrabajo() {
+      try {
+        const t = JSON.parse(localStorage.getItem(CLAVE_ULTIMO_TRABAJO) || 'null');
+        if (t && t.id && Date.now() - t.ts < VIGENCIA_ULTIMO_TRABAJO_MS) return t;
+      } catch (_) {}
       return null;
     }
 
-    function experimentoShadowActivo() {
-      const ahora = Date.now();
-      return ahora >= SHADOW_EXPERIMENT_START && ahora < SHADOW_EXPERIMENT_END;
+    function olvidarUltimoTrabajo() {
+      try { localStorage.removeItem(CLAVE_ULTIMO_TRABAJO); } catch (_) {}
+      reanudarBtn.classList.add('hidden');
     }
 
-    function crearExperimentId() {
-      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-        return window.crypto.randomUUID();
+    function nombreBase(nombreArchivo) {
+      return (nombreArchivo || 'transcripciones').replace(/\.[^.]+$/, '');
+    }
+
+    archivoInput.addEventListener('change', () => {
+      const f = archivoInput.files[0];
+      if (!f) { progreso.textContent = 'Esperando archivo...'; return; }
+      if (f.size === 0) {
+        progreso.textContent = `⚠️ "${f.name}" parece vacío o no se ha descargado del todo (0 bytes). Si está en la nube (iCloud/Drive/WhatsApp), ábrelo primero para descargarlo por completo y vuelve a seleccionarlo.`;
+        return;
       }
-      return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    }
+      const tamanoMB = (f.size / (1024 * 1024)).toFixed(1);
+      progreso.textContent = `📄 Archivo seleccionado: ${f.name} (${tamanoMB} MB)\nPulsa "Subir el archivo y procesarlo" para continuar.`;
+      avisarSiEsDemasiadoLargo(f);
+    });
 
-    function lanzarExperimentoShadow(gs_uri, archivo) {
-      if (!experimentoShadowActivo()) return;
-      if (Math.random() >= SHADOW_EXPERIMENT_RATE) return;
-
-      const payload = {
-        gcs_uri: gs_uri,
-        experiment_id: crearExperimentId(),
-        original_filename: archivo.name,
-        source_lang: selIdioma.value,
-        prompt_id: selPrompt.value
-      };
-
-      fetch(`${SHADOW_EXPERIMENT_URL}/comparar-shadow`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-        .then(res => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.json();
-        })
-        .then(data => console.info('Experimento shadow guardado', data))
-        .catch(err => console.warn('No se pudo completar el experimento shadow', err));
-    }
-
-    function registrarEventoReal(data) {
-      const linea = (data || '').trim();
-      if (!linea) return;
-      if (linea === ultimaLineaSSE) return;
-      ultimaLineaSSE = linea;
-
-      const etapa = detectarEtapaReal(linea);
-      if (etapa && etapa !== etapaActual) {
-        etapaActual = etapa;
-        progreso.textContent += `\n${etapa}\n`;
-        if (etapaActual === '✍️ Etapa: corrección') {
-          if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
-          intervaloPulsoCorreccion = setInterval(() => {
-            progreso.textContent += '\n⏳ Seguimos corrigiendo el texto...\n';
-          }, 30000);
-        } else if (intervaloPulsoCorreccion) {
-          clearInterval(intervaloPulsoCorreccion);
-          intervaloPulsoCorreccion = null;
+    // Aviso temprano; quien manda es el servicio, que rechaza lo que supere el límite.
+    function avisarSiEsDemasiadoLargo(f) {
+      const url = URL.createObjectURL(f);
+      const audio = new Audio();
+      audio.preload = 'metadata';
+      audio.onloadedmetadata = () => {
+        if (isFinite(audio.duration) && audio.duration > LIMITE_SEGUNDOS) {
+          const horas = (audio.duration / 3600).toFixed(1);
+          progreso.textContent += `\n⚠️ El audio dura unas ${horas} h y el máximo es de 2 h. El servicio lo rechazará: córtalo antes de subirlo.`;
         }
-      }
-
-      progreso.textContent += linea + '\n';
+        URL.revokeObjectURL(url);
+      };
+      audio.onerror = () => URL.revokeObjectURL(url);
+      audio.src = url;
     }
 
     limpiarBtn.addEventListener('click', () => {
       archivoInput.value = '';
-      limpiarEstadoDescarga();
-      botonDescargar.classList.add('hidden');
-      botonReintentar.classList.add('hidden');
+      reiniciarSalida();
       progreso.textContent = 'Esperando archivo...';
-      ultimaLineaSSE = '';
-      etapaActual = '';
-      if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
-      intervaloPulsoCorreccion = null;
       bloquearUI(false);
       archivoInput.focus();
     });
@@ -251,198 +232,198 @@
     subirBtn.addEventListener('click', async () => {
       const archivo = archivoInput.files[0];
       if (!archivo) { alert('Selecciona un archivo.'); return; }
+      if (archivo.size === 0) { alert('El archivo está vacío.'); return; }
 
-      progreso.textContent = '🔐 Preparando la subida...';
-      botonDescargar.classList.add('hidden');
-      botonReintentar.classList.add('hidden');
+      reiniciarSalida();
       bloquearUI(true);
-
-      // 1) Pide URL firmada para subir a GCS
-   try {
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), 15000); // 15s de timeout por si queda colgado
-
-  const respuesta = await fetch(`${BASE_URL}/firmar-subida`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nombre_archivo: archivo.name }),
-    signal: ac.signal
-  });
-  clearTimeout(t);
-
-  if (!respuesta.ok) {
-    let detalle = '';
-    try { const j = await respuesta.json(); detalle = j.error ? ` Detalle: ${j.error}` : ''; } catch {}
-    progreso.textContent = '❌ Error al generar URL de subida.' + detalle;
-    bloquearUI(false);
-    return;
-  }
-
-  var { signed_url, gs_uri } = await respuesta.json(); // usa var para que exista fuera del try
-} catch (err) {
-  progreso.textContent = '❌ No se pudo contactar con el servicio (/firmar-subida).';
-  if (err && err.name === 'AbortError') {
-    progreso.textContent += ' Detalle: timeout (15s).';
-  } else if (err && err.message) {
-    progreso.textContent += ` Detalle: ${err.message}`;
-  }
-  bloquearUI(false);
-  return;
-}
-
-      // 2) Sube el archivo con PUT
-      progreso.textContent += '\n⬆️ Subiendo el archivo...';
+      nombreZip = nombreBase(archivo.name) + '_transcripciones.zip';
       try {
-        const uploadResp = await fetch(signed_url, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/octet-stream' },
-          body: archivo
-        });
-
-        if (!uploadResp.ok) {
-          progreso.textContent += `\n❌ Error al subir el archivo. Código: ${uploadResp.status}`;
-          bloquearUI(false);
-          return;
+        escribir('🔐 Preparando la subida...');
+        const subida = await llamar('/api/uploads', { method: 'POST', body: JSON.stringify({ filename: archivo.name }) });
+        if (archivo.size > subida.max_bytes) {
+          throw new Error(`El archivo (${(archivo.size / 1048576).toFixed(0)} MB) supera el tamaño máximo de ${(subida.max_bytes / 1048576).toFixed(0)} MB.`);
         }
 
-        progreso.textContent += '\n✅ Subida completada. Procesando...';
-        lanzarExperimentoShadow(gs_uri, archivo);
-        iniciarSSE(gs_uri);
+        escribir('⬆️ Subiendo el archivo...');
+        // Si el almacenamiento no firma URLs, la subida pasa por la propia API y necesita el token.
+        const cabecerasSubida = subida.directa_al_almacenamiento ? { ...subida.headers } : cabeceras({ ...subida.headers });
+        let respuestaSubida;
+        try {
+          respuestaSubida = await fetch(subida.upload_url, { method: subida.method || 'PUT', headers: cabecerasSubida, body: archivo });
+        } catch (e) {
+          throw new Error('Error de red durante la subida. Comprueba la conexión y vuelve a intentarlo.');
+        }
+        if (!respuestaSubida.ok) {
+          const detalle = await detalleDeError(respuestaSubida);
+          throw new Error(`Error al subir el archivo (HTTP ${respuestaSubida.status}). ${detalle}`.trim());
+        }
+        fijarBarra(0.03);
+        escribir('✅ Subida completada. Creando el trabajo...');
 
-      } catch (err) {
-        progreso.textContent += `\n❌ Error de red durante la subida: ${err}`;
+        const trabajo = await llamar('/api/jobs', {
+          method: 'POST',
+          body: JSON.stringify({ key: subida.key, plantilla: selPrompt.value, idioma: selIdioma.value, nombre: archivo.name }),
+        });
+        idTrabajoActual = trabajo.id;
+        guardarUltimoTrabajo(trabajo.id, archivo.name);
+        escribir(`📄 Audio: ${archivo.name}`);
+        escribir(`🎛️ Modo: plantilla=${selPrompt.value}, idioma=${selIdioma.value}`);
+        await seguirTrabajo(trabajo.id);
+      } catch (e) {
+        escribir(`❌ ${e.message}`);
         bloquearUI(false);
       }
     });
 
-    botonDescargar.addEventListener('click', () => {
-      const url = urlDescargaDirecta || urlDescargaBackend;
-      if (!url) return;
-      progreso.textContent += '\n📥 Iniciando descarga manual...';
-      dispararDescarga(url, nombreArchivoZip, true);
+    reanudarBtn.addEventListener('click', async () => {
+      const t = leerUltimoTrabajo();
+      if (!t) { olvidarUltimoTrabajo(); return; }
+      reiniciarSalida();
+      bloquearUI(true);
+      nombreZip = nombreBase(t.nombre) + '_transcripciones.zip';
+      idTrabajoActual = t.id;
+      escribir(`🔄 Retomando el trabajo de "${t.nombre}"...`);
+      try {
+        await seguirTrabajo(t.id);
+      } catch (e) {
+        escribir(`❌ ${e.message}`);
+        bloquearUI(false);
+      }
     });
 
-    botonReintentar.addEventListener('click', () => {
-      const url = urlDescargaDirecta || urlDescargaBackend;
-      if (!url && nombreZipPendiente) {
-        verificarZIP(nombreZipPendiente);
+    // Sigue los eventos del trabajo. Si la conexión se corta (móvil, cambio de red) reconecta
+    // desde el último evento recibido, sin repetir líneas.
+    async function seguirTrabajo(id) {
+      let ultimo = 0;
+      let estado = null;
+      let fallos = 0;
+      // El arranque de la ejecución en el servidor puede tardar casi un minuto: mientras no
+      // llegue el aviso de que el procesamiento ha empezado, se recuerda que el trabajo sigue.
+      let arrancado = false;
+      let ultimaNovedad = Date.now();
+      const pulso = setInterval(() => {
+        if (!arrancado && Date.now() - ultimaNovedad > ESPERA_ARRANQUE_MS) {
+          escribir('⏳ Seguimos esperando a que arranque el procesamiento...');
+          ultimaNovedad = Date.now();
+        }
+      }, 5000);
+      try {
+        while (!estado) {
+          try {
+            const r = await fetch(`${API_BASE}/api/jobs/${id}/events?desde=${ultimo}`, { headers: cabeceras() });
+            if (!r.ok) throw new ErrorHttp(r.status, textoDeEstado(r.status, await detalleDeError(r)));
+            fallos = 0;
+            await leerFlujo(r, (bloque) => {
+              if (bloque.id) ultimo = Math.max(ultimo, parseInt(bloque.id, 10) || 0);
+              if (bloque.evento === 'estado') { estado = bloque.datos; return; }
+              ultimaNovedad = Date.now();
+              if (bloque.datos && /iniciado/i.test(bloque.datos.mensaje || '')) arrancado = true;
+              mostrarEvento(bloque.evento, bloque.datos);
+            });
+          } catch (e) {
+            if (e instanceof ErrorHttp && (e.estado === 401 || e.estado === 404)) throw e;
+            fallos++;
+            if (fallos > MAX_REINTENTOS_SEGUIMIENTO) {
+              throw new Error('Se ha perdido la conexión con el servicio. El trabajo sigue en marcha: usa "Retomar el último trabajo" en unos minutos.');
+            }
+          }
+          if (!estado) await new Promise((res) => setTimeout(res, ESPERA_REINTENTO_MS));
+        }
+      } finally {
+        clearInterval(pulso);
+      }
+      await terminar(id, estado);
+    }
+
+    async function leerFlujo(respuesta, alBloque) {
+      const lector = respuesta.body.getReader();
+      const decodificador = new TextDecoder('utf-8');
+      let buffer = '';
+      for (;;) {
+        const { done, value } = await lector.read();
+        if (done) break;
+        buffer += decodificador.decode(value, { stream: true });
+        let corte;
+        while ((corte = buffer.indexOf('\n\n')) >= 0) {
+          const crudo = buffer.slice(0, corte);
+          buffer = buffer.slice(corte + 2);
+          const bloque = { id: null, evento: 'message', datos: null };
+          for (const linea of crudo.split('\n')) {
+            if (linea.startsWith('id:')) bloque.id = linea.slice(3).trim();
+            else if (linea.startsWith('event:')) bloque.evento = linea.slice(6).trim();
+            else if (linea.startsWith('data:')) {
+              try { bloque.datos = JSON.parse(linea.slice(5)); } catch (_) { /* línea incompleta */ }
+            }
+          }
+          if (bloque.datos) alBloque(bloque);
+        }
+      }
+    }
+
+    const ICONOS = { segmentacion: '🔪', transcripcion: '🎙️', correccion: '✍️', fin: '✅', error: '❌' };
+
+    function mostrarEvento(tipo, e) {
+      if (!e) return;
+      if (e.actual && e.total) {
+        // La barra reparte el tiempo entre transcripción (5-65 %) y corrección (65-95 %).
+        const [ini, ancho] = tipo === 'transcripcion' ? [0.05, 0.6] : [0.65, 0.3];
+        fijarBarra(ini + ancho * (e.actual - 1) / e.total);
+      }
+      escribir(`${ICONOS[tipo] || '•'} ${e.mensaje}`);
+    }
+
+    async function terminar(id, estado) {
+      bloquearUI(false);
+      if (estado.status !== 'done') {
+        escribir(`❌ El trabajo ha fallado: ${estado.error || 'sin detalle'}`);
+        olvidarUltimoTrabajo();
         return;
       }
-      progreso.textContent += '\n🔁 Reintentando descarga...';
-      intentarDescargaAutomatica(0, 2);
-    });
-
-    function iniciarSSE(gs_uri) {
-      progreso.textContent += `\n🎛️ Modo: prompt=${selPrompt.value}, idioma=${selIdioma.value}\n`;
-      progreso.textContent += '\n🧠 Procesando audio...\n';
-      ultimaLineaSSE = '';
-      etapaActual = '';
-      if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
-      intervaloPulsoCorreccion = null;
-      limpiarEstadoDescarga();
-      botonDescargar.classList.add('hidden');
-      botonReintentar.classList.add('hidden');
-
-      const url = `${BASE_URL}/transcribir-stream` +
-                  `?gcs_uri=${encodeURIComponent(gs_uri)}` +
-                  `&source_lang=${encodeURIComponent(selIdioma.value)}` +
-                  `&prompt_id=${encodeURIComponent(selPrompt.value)}`;
-
-      fetch(url, { method: 'POST' })
-        .then(response => {
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder('utf-8');
-
-          const read = () => {
-            reader.read().then(({ done, value }) => {
-              if (done) {
-                if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
-                intervaloPulsoCorreccion = null;
-                bloquearUI(false);
-                return;
-              }
-              const chunk = decoder.decode(value, { stream: true });
-              chunk.split('\n\n').forEach(block => {
-                const match = block.match(/^data:\s*(.*)$/m);
-                if (match) {
-                  const data = match[1];
-
-                  // Descarga directa desde GCS (sin esperas)
-                  if (data.startsWith('DOWNLOAD_URL::')) {
-                    const urlFirmada = data.split('::')[1];
-                    if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
-                    intervaloPulsoCorreccion = null;
-                    urlDescargaDirecta = urlFirmada;
-                    nombreArchivoZip = 'transcripciones.zip';
-                    progreso.textContent += '\n✅ ZIP disponible. Intentando descarga automática y dejando botón manual por si el navegador la bloquea.';
-                    botonDescargar.classList.remove('hidden');
-                    botonReintentar.classList.remove('hidden');
-                    intentarDescargaAutomatica(0, 1);
-                    bloquearUI(false);
-                    return;
-                  }
-
-                  // Fallback clásico: /descargar/<zip> desde el backend
-                  if (data.startsWith('DOWNLOAD::')) {
-                    const nombreZip = data.split('::')[1];
-                    if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
-                    intervaloPulsoCorreccion = null;
-                    nombreZipPendiente = nombreZip;
-                    zipDescargable = nombreZip;
-                    nombreArchivoZip = nombreZip;
-                    urlDescargaBackend = `${BASE_URL}/descargar/` + nombreZip;
-                    progreso.textContent += `\n🕒 Esperando 30 segundos antes de verificar la descarga...`;
-                    setTimeout(() => { verificarZIP(nombreZip); }, 30000);
-                  } else {
-                    registrarEventoReal(data);
-                  }
-                }
-              });
-              read();
-            });
-          };
-          read();
-        })
-        .catch(() => {
-          if (intervaloPulsoCorreccion) clearInterval(intervaloPulsoCorreccion);
-          intervaloPulsoCorreccion = null;
-          progreso.textContent += '\n❌ Error al iniciar el procesamiento.';
-          bloquearUI(false);
-        });
+      fijarBarra(1);
+      olvidarUltimoTrabajo();
+      try {
+        const r = await llamar(`/api/jobs/${id}/result?formato=url`);
+        urlDescarga = r.url;
+      } catch (e) {
+        escribir(`❌ No se pudo preparar la descarga: ${e.message}`);
+        return;
+      }
+      botonDescargar.classList.remove('hidden');
+      escribir('✅ ZIP disponible. Intentando descarga automática; si el navegador la bloquea, usa el botón.');
+      await descargar();
     }
 
-    async function verificarZIP(nombreZip, intentos = 0) {
-      const urlZip = `${BASE_URL}/descargar/` + nombreZip;
-      progreso.textContent += `\n📦 Verificando disponibilidad real del ZIP (intento ${intentos + 1})...`;
+    function dispararDescarga(url, nombre) {
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.rel = 'noopener';
+      enlace.download = nombre;
+      document.body.appendChild(enlace);
+      enlace.click();
+      document.body.removeChild(enlace);
+    }
+
+    async function descargar() {
+      if (urlDescarga) { dispararDescarga(urlDescarga, nombreZip); return; }
+      // Sin URL firmada, el ZIP se pide a la API con el token y se guarda desde el navegador.
+      if (!idTrabajoActual) return;
       try {
-        const res = await fetch(urlZip, { method: 'GET' });
-        if (res.ok) {
-          progreso.textContent += `\n✅ Transcripción completada. Pulsa el botón para descargar.`;
-          zipDescargable = nombreZip;
-          nombreArchivoZip = nombreZip;
-          urlDescargaBackend = urlZip;
-          botonDescargar.classList.remove('hidden');
-          botonReintentar.classList.remove('hidden');
-          bloquearUI(false);
-          return;
-        }
-        if (intentos < 6) {
-          setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000);
-        } else {
-          progreso.textContent += `\n⚠️ ZIP aún no disponible para descarga.`;
-          botonReintentar.classList.remove('hidden');
-          bloquearUI(false);
-        }
-      } catch (_) {
-        if (intentos < 6) {
-          setTimeout(() => verificarZIP(nombreZip, intentos + 1), 3000);
-        } else {
-          progreso.textContent += `\n❌ Error al verificar disponibilidad del ZIP.`;
-          botonReintentar.classList.remove('hidden');
-          bloquearUI(false);
-        }
+        const r = await fetch(`${API_BASE}/api/jobs/${idTrabajoActual}/result`, { headers: cabeceras() });
+        if (!r.ok) throw new ErrorHttp(r.status, textoDeEstado(r.status, await detalleDeError(r)));
+        const url = URL.createObjectURL(await r.blob());
+        dispararDescarga(url, nombreZip);
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } catch (e) {
+        escribir(`❌ No se pudo descargar el ZIP: ${e.message}`);
       }
     }
+
+    botonDescargar.addEventListener('click', () => { escribir('📥 Iniciando descarga manual...'); descargar(); });
+
+    (function mostrarReanudar() {
+      const t = leerUltimoTrabajo();
+      if (t) reanudarBtn.classList.remove('hidden');
+    })();
   </script>
 </body>
 </html>

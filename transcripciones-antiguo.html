@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <script src="auth-check.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Transcriptor GPT-4o mini · Diario de Navarra</title>
+  <title>Transcriptor de entrevistas · Diario de Navarra</title>
   <meta name="description" content="Interfaz clara para subir audios y descargar transcripciones en ZIP" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,14 +16,14 @@
     <div class="brand">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
       Diario de Navarra · Utilidades
-      <span class="badge">Transcriptor GPT-4o mini</span>
+      <span class="badge">Transcriptor</span>
     </div>
   </header>
 
   <main>
     <section class="card stack" aria-labelledby="titulo">
       <div class="stack stack-tight">
-        <h1 id="titulo" class="title">📝 Transcriptor de entrevistas · prueba GPT-4o mini</h1>
+        <h1 id="titulo" class="title">📝 Transcriptor de entrevistas</h1>
         <p class="subtitle">Sube un audio y descarga automáticamente las transcripciones en un zip cuando el sistema termina el procesamiento.</p>
       </div>
 
@@ -82,10 +82,14 @@
 
   <script>
     // Cambia esta URL según el entorno: staging o producción
-    // Prueba GPT-4o mini: https://transcriptor-gpt4omini-test-811896322472.europe-west1.run.app
     // Staging: https://transcriptor-prompts-811896322472.europe-west1.run.app
     // Prod:    https://transcriptor-servicio-811896322472.europe-west1.run.app/
-    const BASE_URL = 'https://transcriptor-gpt4omini-test-811896322472.europe-west1.run.app';
+    const BASE_URL = 'https://transcriptor-servicio-811896322472.europe-west1.run.app';
+    // Experimento 2: whisper-1 vs gpt-transcribe (mismo servicio de test, modelo actualizado por env var)
+    const SHADOW_EXPERIMENT_URL = 'https://transcriptor-gpt4omini-test-811896322472.europe-west1.run.app';
+    const SHADOW_EXPERIMENT_RATE = 0.5;
+    const SHADOW_EXPERIMENT_START = Date.parse('2026-09-15T00:00:00+02:00');
+    const SHADOW_EXPERIMENT_END = Date.parse('2026-09-30T00:00:00+02:00');
 
     const archivoInput = document.getElementById('archivo');
     const subirBtn = document.getElementById('subir');
@@ -167,6 +171,43 @@
       if (m.includes('unific') || m.includes('ensambl') || m.includes('junt')) return '🧩 Etapa: consolidación';
       if (m.includes('zip') || m.includes('almacenamiento') || m.startsWith('download::') || m.startsWith('download_url::')) return '📦 Etapa: empaquetado y entrega';
       return null;
+    }
+
+    function experimentoShadowActivo() {
+      const ahora = Date.now();
+      return ahora >= SHADOW_EXPERIMENT_START && ahora < SHADOW_EXPERIMENT_END;
+    }
+
+    function crearExperimentId() {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+      }
+      return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function lanzarExperimentoShadow(gs_uri, archivo) {
+      if (!experimentoShadowActivo()) return;
+      if (Math.random() >= SHADOW_EXPERIMENT_RATE) return;
+
+      const payload = {
+        gcs_uri: gs_uri,
+        experiment_id: crearExperimentId(),
+        original_filename: archivo.name,
+        source_lang: selIdioma.value,
+        prompt_id: selPrompt.value
+      };
+
+      fetch(`${SHADOW_EXPERIMENT_URL}/comparar-shadow`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
+        .then(data => console.info('Experimento shadow guardado', data))
+        .catch(err => console.warn('No se pudo completar el experimento shadow', err));
     }
 
     function registrarEventoReal(data) {
@@ -265,6 +306,7 @@
         }
 
         progreso.textContent += '\n✅ Subida completada. Procesando...';
+        lanzarExperimentoShadow(gs_uri, archivo);
         iniciarSSE(gs_uri);
 
       } catch (err) {

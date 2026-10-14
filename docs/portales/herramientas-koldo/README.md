@@ -13,7 +13,7 @@ Es un lanzador muy ligero con tres accesos:
 
 - Descarga de noticias por Tag ID
 - Subida de CSV a vector store
-- Variante de pruebas del transcriptor (`transcripciones2.html`)
+- Transcripciones (`transcripciones.html`)
 
 ## Flujo de uso
 
