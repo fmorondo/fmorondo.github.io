@@ -6,6 +6,12 @@ corta — una decisión destilada, no un resumen de la conversación completa.
 
 Orden cronológico inverso: la entrada más reciente va arriba.
 
+## 2026-11-02 — Retirada de `transcripciones-antiguo.html`
+
+**Decisión:** se borran la página antigua y su documentación; el servicio Cloud Run al que llamaba se apaga.
+**Por qué:** cumplidas las dos semanas de plazo; el último uso real del servicio antiguo fue el 2026-10-13.
+**Repos afectados:** `transcripcionesDN` (abandonado), ver su `DECISIONES.md`.
+
 ## 2026-10-14 — `transcripciones.html` pasa al servicio `transcriptor`
 
 **Decisión:** la página de transcripción usa el servicio nuevo (`fmorondo/transcriptor`); la anterior queda como `transcripciones-antiguo.html` dos semanas y se retiran las páginas de prueba.
