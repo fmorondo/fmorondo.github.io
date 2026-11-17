@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generador de URLs UTM con dnav.es</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="brand">🔗 Generador de URLs UTM</div>
+  </header>
+
+  <main>
+    <div class="card stack">
+      <h1 class="title">Crear enlaces UTM</h1>
+
+      <label>Introduce las URLs (una por línea):</label>
+      <textarea id="urls" rows="5"></textarea>
+
+      <label>Sección:</label>
+      <input type="text" id="section">
+
+      <div class="row">
+        <button id="btn-generar" type="button">Generar URLs</button>
+        <button id="btn-acortar-todo" type="button">Acortar todo</button>
+      </div>
+    </div>
+
+    <div class="card stack" id="result"></div>
+  </main>
+
+  <style>
+    .copy-feedback { margin-top: 0.2rem; font-size: 0.9rem; color: #0d6efd; }
+    .error-feedback { margin-top: 0.2rem; font-size: 0.9rem; color: #d63384; }
+  </style>
+  <script>
+    
+    const ENDPOINT_ACORTADOR = 'https://its.diariodenavarra.es/fmorondo/shortio_endpoint/';
+
+    async function acortar(url) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+
+      try {
+        const resp = await fetch(ENDPOINT_ACORTADOR, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+          signal: controller.signal
+        });
+
+        if (!resp.ok) {
+          console.warn('El acortador respondió', resp.status);
+          return null;
+        }
+
+        const data = await resp.json();
+        if (data && typeof data.shorturl === 'string' && data.shorturl.startsWith('http')) {
+          return data.shorturl;
+        }
+
+        console.warn('Respuesta inesperada del acortador', data);
+        return null;
+      } catch (err) {
+        console.warn('No se pudo contactar con el acortador', err);
+        return null;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    function addUtmParams(baseUrl, params) {
+      try {
+        const url = new URL(baseUrl);
+        Object.entries(params).forEach(([key, value]) => {
+          url.searchParams.set(key, value);
+        });
+        return url.toString();
+      } catch (err) {
+        return baseUrl;
+      }
+    }
+
+    function sanitizeId(value) {
+      return value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-_]/g, '');
+    }
+
+    function showFeedback(contenedor, mensaje, error = false) {
+      let nodo = contenedor.querySelector('.copy-feedback, .error-feedback');
+      if (!nodo) {
+        nodo = document.createElement('div');
+        nodo.className = error ? 'error-feedback' : 'copy-feedback';
+        contenedor.appendChild(nodo);
+      }
+      nodo.textContent = mensaje;
+      setTimeout(() => { nodo.textContent = ''; }, 1600);
+    }
+
+    function copiar(id) {
+      const text = document.getElementById(id).innerText;
+      navigator.clipboard.writeText(text)
+        .then(() => showFeedback(document.getElementById(id).parentElement, 'Copiado al portapapeles ✅'))
+        .catch(() => showFeedback(document.getElementById(id).parentElement, 'No se pudo copiar. Usa Ctrl+C manualmente.', true));
+    }
+
+    async function acortarCaja(id, boton) {
+      const caja = document.getElementById(id);
+      const urlOriginal = caja.innerText;
+      boton.disabled = true;
+      boton.textContent = 'Acortando...';
+      const urlCorta = await acortar(urlOriginal);
+      boton.disabled = false;
+      boton.textContent = 'Acortar';
+
+      if (!urlCorta) {
+        showFeedback(caja.parentElement, 'short.io no está disponible. No se pudo acortar. Se mantiene la URL original.', true);
+        return;
+      }
+
+      caja.innerText = urlCorta;
+      showFeedback(caja.parentElement, 'URL acortada ✅');
+    }
+
+    function crearCaja(id, titulo, url) {
+      const cont = document.createElement('div');
+      cont.className = 'stack';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = titulo;
+      cont.appendChild(h3);
+
+      const div = document.createElement('div');
+      div.className = 'result';
+      div.id = id;
+      div.textContent = url;
+      cont.appendChild(div);
+
+      const row = document.createElement('div');
+      row.className = 'row';
+
+      const btnCopiar = document.createElement('button');
+      btnCopiar.textContent = 'Copiar';
+      btnCopiar.type = 'button';
+      btnCopiar.onclick = () => copiar(id);
+      row.appendChild(btnCopiar);
+
+      const btnAcortar = document.createElement('button');
+      btnAcortar.textContent = 'Acortar';
+      btnAcortar.type = 'button';
+      btnAcortar.onclick = () => acortarCaja(id, btnAcortar);
+      btnAcortar.dataset.target = id;
+      row.appendChild(btnAcortar);
+
+      cont.appendChild(row);
+      return cont;
+    }
+
+    async function acortarTodo() {
+      const botones = Array.from(document.querySelectorAll('button[data-target]'));
+      if (!botones.length) {
+        return;
+      }
+      const btnGlobal = document.getElementById('btn-acortar-todo');
+      btnGlobal.disabled = true;
+      btnGlobal.textContent = 'Acortando...';
+
+      for (const btn of botones) {
+        const id = btn.dataset.target;
+        await acortarCaja(id, btn);
+      }
+
+      btnGlobal.disabled = false;
+      btnGlobal.textContent = 'Acortar todo';
+    }
+
+    function generar() {
+      const urls = document.getElementById('urls').value.trim().split('\n').map(u => u.trim()).filter(Boolean);
+      const section = document.getElementById('section').value.trim();
+      const result = document.getElementById('result');
+      result.innerHTML = '';
+
+      if (!urls.length || !section) {
+        alert('Introduce al menos una URL y una sección.');
+        return;
+      }
+
+      const configs = [
+        { title: 'Story de Instagram', utm: { utm_source: 'instagram', utm_medium: 'social', utm_campaign: section, utm_content: 'story' } },
+        { title: 'Post de Instagram', utm: { utm_source: 'later', utm_medium: 'linkinbio', utm_campaign: section, utm_content: 'post' } },
+        { title: 'WhatsApp', utm: { utm_source: 'Whatsapp', utm_medium: 'enlace', utm_campaign: section, utm_id: 'alerta_comunidad' } },
+        { title: 'linkedIn', utm: { utm_source: 'linkedIn', utm_medium: 'enlace', utm_campaign: section, utm_id: 'post' } }
+      ];
+
+      urls.forEach((baseUrl, i) => {
+        configs.forEach(({ title, utm }) => {
+          const urlUtm = addUtmParams(baseUrl, utm);
+          const id = `utm-${i}-${sanitizeId(title)}`;
+          result.appendChild(crearCaja(id, title, urlUtm));
+        });
+      });
+    }
+
+    document.getElementById('btn-generar').addEventListener('click', generar);
+    document.getElementById('btn-acortar-todo').addEventListener('click', acortarTodo);
+  </script>
+</body>
+</html>
